@@ -60,9 +60,10 @@ class DbSigner:
         toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x])
         hexder = toHex(derstring)
         headers = dict()
+        headers["debug-signing-string"] = signingstring
         headers["content-type"] = "application/json"
         headers["mydate"] = mydate
-        headers["signature"] = 'keyId="na",headers="(request-target) host mydate digest",algorithm="ecdsa-sha256",signature="' + hexder + '"'
+        headers["signature"] = 'keyId="na",headers="(request-target) host mydate digest",algorithm="ecdsa-sha256",signature=' + hexder
         headers["digest"] = "SHA256=" + b64digest
         return body, headers, uri
 
