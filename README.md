@@ -16,6 +16,14 @@ Then install with the fork of the dependency.
 python3 -m pip install . --process-dependency-links
 ```
 
+If you wish to run the test scripts, install the FlureeDB Javascript library:
+
+```bash
+npm install @fluree/crypto-utils
+```
+
+This shouldn't be needed for normal operation.
+
 ### Low level API
 
 The low-level API is used for signing transactions and queries. Documentalion will follow.

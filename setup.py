@@ -25,7 +25,7 @@ setup(
         'Environment :: Other Environment'
     ],
     keywords='flureedb fluree flureeql sparql graphql',
-    install_requires=["starkbank-ecdsa==1.0.21"],
+    install_requires=["starkbank-ecdsa==1.0.21", "aiohttp"],
     dependency_links=['https://github.com/pibara/ecdsa-python/tarball/master#egg=starkbank-ecdsa-1.0.21'],
     packages=find_packages(),
 )
