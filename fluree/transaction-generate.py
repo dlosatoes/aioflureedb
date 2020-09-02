@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import json
-from ellipticcurve.utils.flureedb import DbSigner
+from aioflureedb.signing import DbSigner
 
 def free_test(signer):
     data = [{"foo": 42, "bar": "appelvlaai"}]

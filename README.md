@@ -10,12 +10,10 @@ If you already have the library installed, uninstall it:
 python3 -m pip uninstall starkbank-ecdsa
 ```
 
-Then fetch the patched version and pip install from your local directory
+Then install with the fork of the dependency.
 
 ```bash
-git pull https://github.com/pibara/ecdsa-python
-cd ecdsa-python
-python3 -m pip install .
+python3 -m pip install . --process-dependency-links
 ```
 
 ### Low level API
