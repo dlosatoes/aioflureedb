@@ -13,6 +13,18 @@ from ellipticcurve import privateKey, ecdsa
 
 
 def _to_hex(x):
+    """Convert binary string x to a hex string
+
+    Parameters
+    ----------
+    x : string
+        binary string
+
+    Returns
+    -------
+    string
+        Hex representation of the binary string.
+    """
     return "".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 
@@ -20,6 +32,21 @@ class DbSigner:
     """Low level signer class for signing FlureeDB transactions and queries"""
     # pylint: disable=too-many-arguments
     def __init__(self, privkey, address, database, validity=120, fuel=1000):
+        """Constructor for DbSigner
+
+        Parameters
+        ----------
+        privkey : string
+                  Hex or base58 encoded signing key.
+        address : string
+                  Key-id of the signing key.
+        database : string
+                   Network/Db string for the database to use.
+        validity: int
+                  Time (seconds) the signature is to remain valid.
+        fuel: int
+              Not sure what this is for, consult FlureeDB documentation for info.
+        """
         if len(privkey) != 64:
             privkey = base58.b58decode(privkey).hex()
         self.private_key = privateKey.PrivateKey.fromString(bytes.fromhex(privkey))
@@ -30,6 +57,18 @@ class DbSigner:
         self.fuel = fuel
 
     def _string_signature(self, datastring):
+        """Internal method for signing a command string
+
+        Parameters
+        ----------
+        datastring: string
+                    Fluree command encoded string to create a signature for.
+
+        Returns
+        -------
+        dict
+            Python dict with command and signature fields.
+        """
         sig = ecdsa.Ecdsa.sign(datastring, self.private_key, with_recid=True)
         derstring = sig.toDer()
         hexder = _to_hex(derstring)
@@ -39,11 +78,34 @@ class DbSigner:
         return command
 
     def _obj_signature(self, obj):
+        """Internal method for signing a command object
+
+        Parameters
+        ----------
+        obj: dict
+                    Fluree command object to create a signature for.
+
+        Returns
+        -------
+        dict
+            Python dict with command and signature fields.
+        """
         rval = self._string_signature(json.dumps(obj))
         return rval
 
     def sign_transaction(self, transaction):
-        """Sign a FlureeDB transaction for use in thr command endpoint"""
+        """Sign a FlureeDB transaction for use in thr command endpoint
+
+        Parameters
+        ----------
+        transaction: list
+                    Transaction list with objects for a FlureeDB transaction.
+
+        Returns
+        -------
+        dict
+            Python dict with command and signature fields.
+        """
         obj = dict()
         obj["type"] = "tx"
         obj["tx"] = transaction
@@ -57,7 +119,24 @@ class DbSigner:
         return rval
 
     def sign_query(self, param, querytype="query"):
-        """Sign a FlureeDB query"""
+        """Sign a FlureeDB query
+
+        Parameters
+        ----------
+        param : dict
+                Unsigned Fluree query object.
+        querytype : string
+                    API endpoint identifier.
+
+        Returns
+        -------
+        string
+            Body fot the HTTP post to fluree
+        dict
+            Dictionary with HTTP header fields for the HTTP post to FlureeDB
+        string
+            The URI used for signing.
+        """
         body = json.dumps(param)
         uri = "/fdb/" + self.database + "/" + querytype
         stamp = mktime(datetime.now().timetuple())
