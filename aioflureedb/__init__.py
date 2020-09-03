@@ -81,7 +81,7 @@ class FlureeDbClient:
                            ":" + \
                            str(client.port) + \
                            "/fdb/" + \
-                           client.db + \
+                           client.database + \
                            "/" + \
                            api_endpoint
                 self.signer = client.signer
@@ -262,6 +262,7 @@ class FlureeDbClient:
                 """
                 raise NotImplementedError("No checked transactions implemented so far.")
 
+        print("DEBUG:", api_endpoint)
         if api_endpoint in ["graphql"]:
             return GraphQlEndpoint(api_endpoint, self)
         if api_endpoint in ["sparql"]:
