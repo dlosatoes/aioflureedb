@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 import asyncio
+import hashlib
 import time
 import subprocess
 import aioflureedb
 import bitcoinlib
+import base58
 
 def get_privkey_from_running_docker():
     print("Finding fluree docker")
@@ -27,7 +29,16 @@ def get_privkey_from_running_docker():
 
 def get_key_id_from_privkey(privkey):
     if privkey:
-        return bitcoinlib.keys.Key(privkey).address()
+        core = b'\x0f\x02' + base58.b58decode(bitcoinlib.keys.Key(privkey).address())[1:-4]
+        h1 = hashlib.sha256()
+        h2 = hashlib.sha256()
+        h1.update(core)
+        h2.update(h1.digest())
+        keyid1 = base58.b58encode(core + h2.digest()[:4]).decode()
+        keyid2 = subprocess.check_output(["/usr/bin/node", "key2id.js", privkey]).decode()[:-1]
+        print(keyid1)
+        print(keyid2)
+        return keyid2
     return None
 
 async def main(clnt):
@@ -52,7 +63,7 @@ async def main(clnt):
 pkey = get_privkey_from_running_docker()
 print("Getting address from key")
 address = get_key_id_from_privkey(pkey)
-print("ADDRESS:", address)
+print("ADDRESS:", address, pkey)
 print()
 database = "dla/dla"
 port = 8090
