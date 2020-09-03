@@ -114,7 +114,7 @@ class DbSigner:
         obj["fuel"] = self.fuel
         nonce = random.randint(0, 9007199254740991)
         obj["nonce"] = nonce
-        obj["expire"] = int(time.time() + self.validity)
+        obj["expire"] = int((time.time() + self.validity)*1000)
         rval = self._obj_signature((obj))
         return rval
 
@@ -150,9 +150,8 @@ class DbSigner:
         derstring = sig.toDer()
         hexder = _to_hex(derstring)
         headers = dict()
-        headers["debug-signing-string"] = signingstring
         headers["content-type"] = "application/json"
         headers["mydate"] = mydate
         headers["signature"] = 'keyId="na",headers="(request-target) host mydate digest",algorithm="ecdsa-sha256",signature=' + hexder
-        headers["digest"] = "SHA256=" + b64digest
+        headers["digest"] = "SHA-256=" + b64digest
         return body, headers, uri

@@ -16,7 +16,6 @@ let hashalgo = digest_parts.shift()
 let b64hash = digest_parts.join("=")
 let mydate = headers["mydate"]
 let signature = headers["signature"]
-let python_signing_string = headers["debug-signing-string"]
 let signature_parts = signature.split(",")
 let hexsignature = null
 signature_parts.forEach(function (item, index) {

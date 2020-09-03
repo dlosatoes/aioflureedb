@@ -4,6 +4,9 @@ import asyncio
 import json
 import aiohttp
 from aioflureedb.signing import DbSigner
+class FlureeException(Exception):
+    def __init__(self,*args,**kwargs):
+        Exception.__init__(self,*args,**kwargs)
 
 
 # pylint: disable=too-few-public-methods
@@ -46,6 +49,9 @@ class FlureeDbClient:
         self.https = https
         self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
         self.session = aiohttp.ClientSession()
+
+    async def close_session(self):
+        await self.session.close()
 
     def __getattr__(self, api_endpoint):
         """Select API endpoint
@@ -103,7 +109,8 @@ class FlureeDbClient:
                     Content as returned by HTTP server
                 """
                 async with self.session.post(self.url, data=body, headers=headers) as resp:
-                    assert resp.status == 200
+                    if resp.status != 200:
+                        raise FlureeException(await resp.text())
                     return await resp.text()
 
             async def header_signed(self, query_body):
@@ -262,7 +269,6 @@ class FlureeDbClient:
                 """
                 raise NotImplementedError("No checked transactions implemented so far.")
 
-        print("DEBUG:", api_endpoint)
         if api_endpoint in ["graphql"]:
             return GraphQlEndpoint(api_endpoint, self)
         if api_endpoint in ["sparql"]:
