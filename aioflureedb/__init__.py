@@ -51,6 +51,7 @@ class FlureeDbClient:
         self.session = aiohttp.ClientSession()
 
     async def close_session(self):
+        """Close HTTP(S) session to FlureeDB"""
         await self.session.close()
 
     def __getattr__(self, api_endpoint):
@@ -176,7 +177,7 @@ class FlureeDbClient:
                 dict
                     JSON decoded query response
                 """
-                return_body = await self.stringendpoint.header_signed(json.dumps(query_object))
+                return_body = await self.stringendpoint.header_signed(query_object)
                 return json.loads(return_body)
 
         class SparQlEndpoint:

@@ -150,8 +150,8 @@ class DbSigner:
         derstring = sig.toDer()
         hexder = _to_hex(derstring)
         headers = dict()
-        headers["content-type"] = "application/json"
-        headers["mydate"] = mydate
-        headers["signature"] = 'keyId="na",headers="(request-target) host mydate digest",algorithm="ecdsa-sha256",signature=' + hexder
-        headers["digest"] = "SHA-256=" + b64digest
+        headers["Content-Type"] = "application/json"
+        headers["X-Fluree-Date"] = mydate
+        headers["Signature"] = 'keyId="na",headers="(request-target) x-fluree-date digest",algorithm="ecdsa-sha256",signature="' + hexder + '"'
+        headers["Digest"] = "SHA-256=" + b64digest
         return body, headers, uri

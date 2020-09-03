@@ -34,11 +34,8 @@ def get_key_id_from_privkey(privkey):
         h2 = hashlib.sha256()
         h1.update(core)
         h2.update(h1.digest())
-        keyid1 = base58.b58encode(core + h2.digest()[:4]).decode()
-        keyid2 = subprocess.check_output(["/usr/bin/node", "key2id.js", privkey]).decode()[:-1]
-        print(keyid1)
-        print(keyid2)
-        return keyid2
+        keyid = base58.b58encode(core + h2.digest()[:4]).decode()
+        return keyid
     return None
 
 async def main(clnt):

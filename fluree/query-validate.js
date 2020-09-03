@@ -9,19 +9,19 @@ let body = obj["body"];
 let local_digest = fluree_crypto.sha2_256_normalize(body, "base64");
 let uri = obj["uri"];
 let headers = obj["headers"]
-let ctype = headers["content-type"]
-let digest = headers["digest"]
+let ctype = headers["Content-Type"]
+let digest = headers["Digest"]
 let digest_parts = digest.split("=")
 let hashalgo = digest_parts.shift()
 let b64hash = digest_parts.join("=")
-let mydate = headers["mydate"]
-let signature = headers["signature"]
+let mydate = headers["X-Fluree-Date"]
+let signature = headers["Signature"]
 let signature_parts = signature.split(",")
 let hexsignature = null
 signature_parts.forEach(function (item, index) {
   let keyval = item.split("=");
   if (keyval[0] === "signature") {
-     hexsignature = keyval[1];
+     hexsignature = keyval[1].substring(1,keyval[1].length - 1);
   }
 });
 var signingString = "(request-target): post " + uri +
