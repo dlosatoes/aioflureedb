@@ -44,6 +44,8 @@ async def main(clnt):
     print("CREATING RANDOM USER:", randomuser)
     try:
         transaction = await client.command.transaction([{"_id":"_user","username": randomuser}])
+        # Proposed syntactic sugar #1
+        # transaction = await client.command.transaction.append(_id="_user", username=randomuser).post_transaction()
         print("OK: TRANSACTION STARTED:", transaction)
     except Exception as exp:
         print("FAIL: TRANSACTION FAILED:", exp)
@@ -51,6 +53,15 @@ async def main(clnt):
     print("LOOKING UP ALL USERS")
     try:
         result = await client.query.query({"select": ["*"],"from": "_user"})
+        # Change to allow for syntactic sugar #2 and #3
+        # result = await client.query.query.obj({"select": ["*"],"from": "_user"})
+        #
+        # Proposed syntactic sugar #2
+        # result = await client.query.query(select=["*"], from="_user")
+        # 
+        # Proposed syntactic sugar #3
+        # result = await client.query.query.select(["*"]).from("_user").post_query()
+        #
         print("OK: QUERY SUCCEDED:", result)
     except Exception as exp:
         print("FAIL: QUERY FAILED:", exp)
