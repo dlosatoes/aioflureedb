@@ -9,9 +9,68 @@ class FlureeException(Exception):
         Exception.__init__(self,*args,**kwargs)
 
 
+class FlureeDatabase:
+    """Basic asynchonous client for FlureeDB for non-database specific APIs"""
+    def __init__(self,
+                 privkey,
+                 auth_address,
+                 host="localhost",
+                 port=8080,
+                 https=False,
+                 sig_validity=120,
+                 sig_fuel=1000):
+        """Constructor
+
+        Parameters
+        ----------
+        privkey : string
+                  Hex or base58 encoded signing key
+        auth_address : string
+                       key-id of the signing key
+        host : string
+                   hostname of the FlureeDB server. Defaults to localhost.
+        port : int
+                   port of the FlureeDB server. Defaults to 8080
+        https : bool
+                   Boolean indicating flureeDB is running behind a HTTPS proxy
+        sig_validity : int
+                   Validity in seconda of the signature.
+        sig_fuel : int
+                   Not sure what this is for, consult FlureeDB documentation for info.
+        """
+        self.host = host
+        self.port = port
+        self.https = https
+        self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
+        self.session = aiohttp.ClientSession()
+        self.known_endpoints = set(["dbs","new_db","delete_db","add_server","remove_server","health","new_keys"])
+        self.implemented = set()
+    def __getattr__(self, api_endpoint):
+        """Select API endpoint
+
+        Parameters
+        ----------
+        api_endpoint : string
+                     Name of the API endpoint.
+
+        Returns
+        -------
+        object
+            Endpoint object suitable for API endpoint.
+        """
+        if api_endpoint not in self.known_endpoints:
+            raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
+        if api_endpoint not in self.implemented:
+            raise NotImplementedError("No implementation yet for " + api_endpoint)
+    async def close_session(self):
+        """Close HTTP(S) session to FlureeDB"""
+        await self.session.close()
+
+
+
 # pylint: disable=too-few-public-methods
 class FlureeDbClient:
-    """Basic asynchonous client library for FlureeDB"""
+    """Basic asynchonous client for FlureeDB representing a particular database on FlureeDB"""
     # pylint: disable=too-many-arguments
     def __init__(self,
                  privkey,
@@ -49,6 +108,9 @@ class FlureeDbClient:
         self.https = https
         self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
         self.session = aiohttp.ClientSession()
+        self.known_endpoints = set(["snapshot","list_snapshots","export","query","multi_query","block","history","transact","graphql","sparql","command","reindex","hide","gen_flakes","query_with","test_transact_with","block_range_with","ledger_stats","storage","pw"])
+        self.pw_endpoints = set(["generate","renew","login"])
+        self.implemented = set(["query", "command"])
 
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
@@ -180,44 +242,6 @@ class FlureeDbClient:
                 return_body = await self.stringendpoint.header_signed(query_object)
                 return json.loads(return_body)
 
-        class SparQlEndpoint:
-            """Endpoint for SparQL queries"""
-            def __init__(self, api_endpoint, client):
-                """Constructor
-
-                Parameters
-                ----------
-                api_endpoint : string
-                               Name of the API endpoint
-                client: object
-                        The wrapping FlureeDbClient
-                """
-                self.stringendpoint = _StringEndpoint(api_endpoint, client)
-
-            async def query(self, query_sparql_obj):
-                """Query wit a SparQl representation object that should get serialized and convert
-                   response back into a suitable object"""
-                raise NotImplementedError("No SparQL support yet in library")
-
-        class GraphQlEndpoint:
-            """Endpoint for GraphQl queries"""
-            def __init__(self, api_endpoint, client):
-                """Constructor
-
-                Parameters
-                ----------
-                api_endpoint : string
-                               Name of the API endpoint
-                client: object
-                        The wrapping FlureeDbClient
-                """
-                self.stringendpoint = _StringEndpoint(api_endpoint, client)
-
-            async def query(self, query_graphql_obj):
-                """Query wit a GraphQL representation object that should get serialized and convert
-                   response back into a suitable object"""
-                raise NotImplementedError("No GraphQL support yet in library")
-
         class TransactionEndpoint:
             """Endpoint for FlureeQL queries"""
             def __init__(self, api_endpoint, client):
@@ -270,10 +294,10 @@ class FlureeDbClient:
                 """
                 raise NotImplementedError("No checked transactions implemented so far.")
 
-        if api_endpoint in ["graphql"]:
-            return GraphQlEndpoint(api_endpoint, self)
-        if api_endpoint in ["sparql"]:
-            return SparQlEndpoint(api_endpoint, self)
+        if api_endpoint not in self.known_endpoints:
+            raise AttributeError("FlureeDB has no endpoint named " + api_endpoint) 
+        if api_endpoint not in self.implemented:
+            raise NotImplementedError("No implementation yet for " + api_endpoint)
         if api_endpoint in ["command"]:
             return TransactionEndpoint(api_endpoint, self)
         return JSONEndpoint(api_endpoint, self)
