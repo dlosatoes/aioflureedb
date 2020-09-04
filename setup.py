@@ -6,7 +6,7 @@ here = path.abspath(path.dirname(__file__))
 
 setup(
     name='aioflureedb',
-    version='0.0.34',
+    version='0.0.35',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,
@@ -25,7 +25,6 @@ setup(
         'Environment :: Other Environment'
     ],
     keywords='flureedb fluree flureeql sparql graphql',
-    install_requires=["starkbank-ecdsa==1.0.21", "aiohttp"],
-    dependency_links=['https://github.com/pibara/ecdsa-python/tarball/master#egg=starkbank-ecdsa-1.0.21'],
+    install_requires=["starkbank-ecdsa>=1.1", "aiohttp"],
     packages=find_packages(),
 )

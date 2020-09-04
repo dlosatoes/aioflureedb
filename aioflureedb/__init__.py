@@ -211,7 +211,7 @@ class FlureeDbClient:
                 return await self._post_body_with_headers(body, headers)
 
         # pylint: disable=too-few-public-methods
-        class JSONEndpoint:
+        class FlureeQlEndpoint:
             """Endpoint for JSON based (FlureeQl) queries"""
             def __init__(self, api_endpoint, client):
                 """Constructor
@@ -224,8 +224,30 @@ class FlureeDbClient:
                         The wrapping FlureeDbClient
                 """
                 self.stringendpoint = _StringEndpoint(api_endpoint, client)
-
-            async def query(self, query_object):
+            class FlureeQlQuery:
+                class ObjSetter:
+                    def __init__(self, query, key):
+                        self.query = query
+                        self.key = key
+                    def __call__(self, value):
+                        self.query.obj[self.key] = value
+                def __init__(self, endpoint):
+                    self.endpoint = endpoint
+                    self.obj = dict()
+                    self.permittedkeys = set(["select","selectOne","selectDistinct","where","block","prefixes","vars","opts"])
+                async def __call__(self, obj):
+                    return await self.endpoint.actual_query(obj)
+                def __getattr__(self, fqlkey):
+                    if fqlkey in self.permittedkeys:
+                        return ObjSetter(this, fqlkey)
+                    else:
+                        raise AttributeError("FlureeQl query has no key defined named " + fqlkey)
+            def __getattr__(self, method):
+                if api_endpoint == "select":
+                    return FlureeQlQuery(this)
+                else:
+                    raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
+            async def actual_query(self, query_object):
                 """Query wit a python dict that should get JSON serialized and convert JSON
                    response back into a pthhon object
 
@@ -300,4 +322,4 @@ class FlureeDbClient:
             raise NotImplementedError("No implementation yet for " + api_endpoint)
         if api_endpoint in ["command"]:
             return TransactionEndpoint(api_endpoint, self)
-        return JSONEndpoint(api_endpoint, self)
+        return FlureeQlEndpoint(api_endpoint, self)

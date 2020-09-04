@@ -1,18 +1,13 @@
 ## aioflureedb
 
-### dependency notes
+This library isn't production stable yet. Please only use for experiments and development hints.
 
-Please note, this library depends on a [patch](https://github.com/starkbank/ecdsa-python/pull/21) to the [StarkBank ECDSA library](https://pypi.org/project/starkbank-ecdsa/) that is currently not merged into master yet. You will need to pull the library from the **pibara** fork instead for now.
+### Install
 
-If you already have the library installed, uninstall it:
-
-```bash
-python3 -m pip uninstall starkbank-ecdsa
-```
-
-Then install with the fork of the dependency.
 
 ```bash
+git clone https://github.com/pibara/aioflureedb.git
+cd aioflureedb
 python3 -m pip install . --process-dependency-links
 ```
 
