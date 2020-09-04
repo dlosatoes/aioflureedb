@@ -8,8 +8,27 @@ class FlureeException(Exception):
     def __init__(self,*args,**kwargs):
         Exception.__init__(self,*args,**kwargs)
 
+class FlureeQlQuery:
+    class ObjSetter:
+        def __init__(self, query, key):
+            self.query = query
+            self.key = key
+        def __call__(self, value):
+            self.query.obj[self.key] = value
+    def __init__(self, endpoint, method):
+        self.endpoint = endpoint
+        self.obj = dict()
+        self.permittedkeys = set(["select","selectOne","selectDistinct","where","block","prefixes","vars","opts"])
+    async def __call__(self, obj):
+        return await self.endpoint.actual_query(obj)
+    def __getattr__(self, fqlkey):
+        if fqlkey in self.permittedkeys:
+            return ObjSetter(self, fqlkey)
+        else:
+            raise AttributeError("FlureeQl query has no key defined named " + fqlkey)
 
-class FlureeDatabase:
+
+class FlureeClient:
     """Basic asynchonous client for FlureeDB for non-database specific APIs"""
     def __init__(self,
                  privkey,
@@ -18,7 +37,8 @@ class FlureeDatabase:
                  port=8080,
                  https=False,
                  sig_validity=120,
-                 sig_fuel=1000):
+                 sig_fuel=1000,
+                 dryrun=False):
         """Constructor
 
         Parameters
@@ -42,7 +62,9 @@ class FlureeDatabase:
         self.port = port
         self.https = https
         self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
-        self.session = aiohttp.ClientSession()
+        self.session = None
+        if not dryrun:
+            self.session = aiohttp.ClientSession()
         self.known_endpoints = set(["dbs","new_db","delete_db","add_server","remove_server","health","new_keys"])
         self.implemented = set()
     def __getattr__(self, api_endpoint):
@@ -64,7 +86,9 @@ class FlureeDatabase:
             raise NotImplementedError("No implementation yet for " + api_endpoint)
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
-        await self.session.close()
+        if self.session:
+            await self.session.close()
+        return
 
 
 
@@ -80,7 +104,8 @@ class FlureeDbClient:
                  port=8080,
                  https=False,
                  sig_validity=120,
-                 sig_fuel=1000):
+                 sig_fuel=1000,
+                 dryrun=False):
         """Constructor
 
         Parameters
@@ -107,14 +132,18 @@ class FlureeDbClient:
         self.port = port
         self.https = https
         self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
-        self.session = aiohttp.ClientSession()
+        self.session = None
+        if not dryrun:
+            self.session = aiohttp.ClientSession()
         self.known_endpoints = set(["snapshot","list_snapshots","export","query","multi_query","block","history","transact","graphql","sparql","command","reindex","hide","gen_flakes","query_with","test_transact_with","block_range_with","ledger_stats","storage","pw"])
         self.pw_endpoints = set(["generate","renew","login"])
         self.implemented = set(["query", "command"])
 
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
-        await self.session.close()
+        if self.session:
+            await self.session.close()
+        return
 
     def __getattr__(self, api_endpoint):
         """Select API endpoint
@@ -171,10 +200,20 @@ class FlureeDbClient:
                 string
                     Content as returned by HTTP server
                 """
-                async with self.session.post(self.url, data=body, headers=headers) as resp:
-                    if resp.status != 200:
-                        raise FlureeException(await resp.text())
-                    return await resp.text()
+                if self.session:
+                    async with self.session.post(self.url, data=body, headers=headers) as resp:
+                        if resp.status != 200:
+                            raise FlureeException(await resp.text())
+                        return await resp.text()
+                else:
+                    print("url:", self.url)
+                    print("########### HEADERS ############")
+                    for key in headers:
+                        print(key,":",headers[key])
+                    print("############ BODY ##############")
+                    print(body)
+                    print("################################")
+                    return('{"dryrun": true}')
 
             async def header_signed(self, query_body):
                 """Do a HTTP query using headers for signing
@@ -224,27 +263,9 @@ class FlureeDbClient:
                         The wrapping FlureeDbClient
                 """
                 self.stringendpoint = _StringEndpoint(api_endpoint, client)
-            class FlureeQlQuery:
-                class ObjSetter:
-                    def __init__(self, query, key):
-                        self.query = query
-                        self.key = key
-                    def __call__(self, value):
-                        self.query.obj[self.key] = value
-                def __init__(self, endpoint):
-                    self.endpoint = endpoint
-                    self.obj = dict()
-                    self.permittedkeys = set(["select","selectOne","selectDistinct","where","block","prefixes","vars","opts"])
-                async def __call__(self, obj):
-                    return await self.endpoint.actual_query(obj)
-                def __getattr__(self, fqlkey):
-                    if fqlkey in self.permittedkeys:
-                        return ObjSetter(this, fqlkey)
-                    else:
-                        raise AttributeError("FlureeQl query has no key defined named " + fqlkey)
             def __getattr__(self, method):
-                if api_endpoint == "select":
-                    return FlureeQlQuery(this)
+                if api_endpoint == "query":
+                    return FlureeQlQuery(self, method)
                 else:
                     raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
             async def actual_query(self, query_object):

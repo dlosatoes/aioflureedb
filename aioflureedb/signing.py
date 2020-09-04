@@ -147,7 +147,7 @@ class DbSigner:
         b64digest = base64.b64encode(digest).decode()
         signingstring = "(request-target): post " + uri + "\nx-fluree-date: " + mydate + "\ndigest: SHA-256=" + b64digest
         sig = ecdsa.Ecdsa.sign(signingstring, self.private_key)
-        derstring = sig.toDer(withRecovery=True)
+        derstring = sig.toDer(withRecoveryId=True)
         hexder = _to_hex(derstring)
         headers = dict()
         headers["Content-Type"] = "application/json"

@@ -75,7 +75,7 @@ print("ADDRESS:", address, pkey)
 print()
 database = "dla/dla"
 port = 8090
-client = aioflureedb.FlureeDbClient(pkey, address, database, port=8090)
+client = aioflureedb.FlureeDbClient(pkey, address, database, port=8090, dryrun=False)
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main(client))
 
