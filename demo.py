@@ -52,7 +52,10 @@ async def fluree_demo(privkey, addr):
     print("Creating user:", randomuser)
     transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])
     print("OK: Transaction started,", transaction)
-    result = await database.query.query({"select": ["*"],"from": "_user"})
+    result = await database.query.query(
+        select=["*"],
+        ffrom="_user"
+    )
     print("Query succeeded, user count =", len(result))
     await flureeclient.close_session()
     await database.close_session()

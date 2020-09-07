@@ -8,26 +8,23 @@ class FlureeException(Exception):
     def __init__(self,*args,**kwargs):
         Exception.__init__(self,*args,**kwargs)
 
-class FlureeQlQuery:
-    class ObjSetter:
-        def __init__(self, query, key):
-            self.query = query
-            self.key = key
-        def __call__(self, value):
-            self.query.obj[self.key] = value
+class _FlureeQlQuery:
     def __init__(self, endpoint, method):
         self.endpoint = endpoint
-        self.obj = dict()
-        self.permittedkeys = set(["select","selectOne","selectDistinct","where","block","prefixes","vars","opts"])
-    async def __call__(self, obj):
+        self.permittedkeys = set(["select","selectOne","selectDistinct","from", "where","block","prefixes","vars","opts"])
+    async def __call__(self, **kwargs):
+        obj = dict()
+        for key, value in kwargs.items():
+            if key == "ffrom":
+                key = "from"
+            if key not in self.permittedkeys:
+                raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
+            obj[key] = value
         return await self.endpoint.actual_query(obj)
-    def __getattr__(self, fqlkey):
-        if fqlkey in self.permittedkeys:
-            return ObjSetter(self, fqlkey)
-        else:
-            raise AttributeError("FlureeQl query has no key defined named " + fqlkey)
+    async def raw(self, obj):
+        return await self.endpoint.actual_query(obj)
 
-class UnsignedGetter:
+class _UnsignedGetter:
     def __init__(self, session, url):
         self.session = session
         self.url = url
@@ -44,7 +41,7 @@ class UnsignedGetter:
             print("################################")
             return({"dryrun": true})
 
-class SignedPoster:
+class _SignedPoster:
     def __init__(self, session, signer, url, required, optional, unsigned):
         self.session = session
         self.signer = signer
@@ -105,7 +102,7 @@ class SignedPoster:
             body, headers, _ = self.signer.sign_query(query_body)
         return await self._post_body_with_headers(body, headers)
 
-class Network:
+class _Network:
     def __init__(self, flureeclient, netname, options):
         self.client = flureeclient
         self.netname = netname
@@ -114,14 +111,14 @@ class Network:
         database = self.netname + "/" + key
         if not key in self.options:
             raise KeyError("No such database: '" + database + "'")
-        return DbFunctor(self.client, database)
+        return _DbFunctor(self.client, database)
 
-class DbFunctor:
+class _DbFunctor:
     def __init__(self, client, database):
         self.client = client
         self.database=database
     def __call__(self, privkey, auth_address, sig_validity=120, sig_fuel=1000):
-        return FlureeDbClient(privkey,
+        return _FlureeDbClient(privkey,
                               auth_address,
                               self.database,
                               self.client.host,
@@ -219,10 +216,10 @@ class FlureeClient:
         if api_endpoint in self.optional:
             optional = self.optional[api_endpoint]
         if signed:
-            return SignedPoster(self.session, self.singer, url, required, optional)
+            return _SignedPoster(self.session, self.singer, url, required, optional)
         if use_get:
-            return UnsignedGetter(self.session, url)
-        return SignedPoster(self.session, self.signer, url, required, optional, unsigned=True)
+            return _UnsignedGetter(self.session, url)
+        return _SignedPoster(self.session, self.signer, url, required, optional, unsigned=True)
     async def __getitem__(self, key):
         databases = await self.dbs()
         options = set()
@@ -231,7 +228,7 @@ class FlureeClient:
                 options.add(pair[1])
         if not bool(options):
             raise KeyError("No such network: '" + key + "'")
-        return Network(self, key, options)
+        return _Network(self, key, options)
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
         if self.session:
@@ -241,7 +238,7 @@ class FlureeClient:
 
 
 # pylint: disable=too-few-public-methods
-class FlureeDbClient:
+class _FlureeDbClient:
     """Basic asynchonous client for FlureeDB representing a particular database on FlureeDB"""
     # pylint: disable=too-many-arguments
     def __init__(self,
@@ -315,7 +312,7 @@ class FlureeDbClient:
                 api_endpoint : string
                                Name of the API endpoint
                 client: object
-                        The wrapping FlureeDbClient
+                        The wrapping _FlureeDbClient
                 """
                 secure = ""
                 if client.https:
@@ -408,12 +405,12 @@ class FlureeDbClient:
                 api_endpoint : string
                                Name of the API endpoint
                 client: object
-                        The wrapping FlureeDbClient
+                        The wrapping _FlureeDbClient
                 """
                 self.stringendpoint = _StringEndpoint(api_endpoint, client)
             def __getattr__(self, method):
                 if api_endpoint == "query":
-                    return FlureeQlQuery(self, method)
+                    return _FlureeQlQuery(self, method)
                 else:
                     raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
             async def actual_query(self, query_object):
@@ -443,7 +440,7 @@ class FlureeDbClient:
                 api_endpoint : string
                                Name of the API endpoint
                 client: object
-                        The wrapping FlureeDbClient
+                        The wrapping _FlureeDbClient
                 """
                 self.stringendpoint = _StringEndpoint(api_endpoint, client)
 
