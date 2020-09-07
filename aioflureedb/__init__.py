@@ -22,7 +22,6 @@ class _FlureeQlQuery:
             if key not in self.permittedkeys:
                 raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
             obj[key] = value
-        print(obj)
         return await self.endpoint.actual_query(obj)
     async def raw(self, obj):
         return await self.endpoint.actual_query(obj)
