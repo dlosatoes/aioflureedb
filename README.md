@@ -55,7 +55,7 @@ body, headers, uri = signer.sign_query(query)
 ### High level API
 The high-level API is an API for doing asynchonous queries and transactions as a FlureeDB client. The high level API doesn't quite work yet.
 
-#### Instantiating a FlureeDB client
+#### Instantiating a Fluree client
 
 ```python
 import asyncio
@@ -67,23 +67,43 @@ async def main(clnt):
 privkey = "bf8a7281f43918a18a3feab41d17e84f93b064c441106cf248307d87f8a60453"
 address = "1AxKSFQ387AiQUX6CuF3JiBPGwYK5XzA1A"
 database = "myorg/mydb"
-client = aioflureedb.FlureeDbClient(privkey, address, database, port=8090)
+client = aioflureedb.FlureeClient(privkey, address, port=8090)
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main(client))
 
+```
+
+#### Getting a database client from the fluree client
+
+```
+async def main(clnt):
+    privkey2 = "..."
+    addr2 = "..."
+    try:
+        network = await clnt["dev"]
+        db = network["main"]
+        database = db(privkey2, addr2)
+    except Exception as exp:
+        print("Problem accessing database", exp)
+
+    ...
+
+    await clnt.close_session()
+    await database.close_session()
 ```
 
 #### Using the command API endpoint for transactions
 
 ```python
 async def main(clnt):
-     try:
-        transaction = await client.command.transaction([{"_id":"_user","username": randomuser}])
-        print("OK: TRANSACTION STARTED:", transaction)
+
+     ...
+    try:
+        transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])
+        print("OK: TRANSACTION COMPLETED:", transaction)
     except Exception as exp:
-        print("FAIL: TRANSACTION FAILED:", exp)
+        print("FAIL: TRANSACTION FAILED:", exp) 
     ...
-    await clnt.close_session()
 ```
 
 Note! an await on transaction resolves as soon as the transaction has been submitted. An other method should be made that only resolves when the transaction has actually completed.
@@ -93,13 +113,26 @@ Note! an await on transaction resolves as soon as the transaction has been submi
 
 ```python
 async def main(clnt):
-     try:
-        result = await client.query.query({"select": ["*"],"from": "_user"})
+    try:
+        result = await database.query.query(select=["*"], ffrom="_user")
         print("OK: QUERY SUCCEDED:", result)
     except Exception as exp:
         print("FAIL: QUERY FAILED:", exp)
     ...
     await clnt.close_session()
 ```
+Note the use of **ffrom** instead of **from**, this is a little hack to avoid Python keyword issues with the FlureeQL from keyword.
 
-NOTICE: This method is currently broken! Work In Progress.
+## Work in progress
+
+The aioflureedb library is currently functioning for the API endpoints that it implements. 
+These are:
+
+* health  (fluree client)
+* dbs     (fluree client)
+* query   (database client)
+* command (database client)
+
+Other endpoint may be easy to implement but are currently not yet supported. Pull request with API-endpoint code are very much welcome.
+
+

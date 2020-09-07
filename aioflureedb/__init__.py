@@ -473,7 +473,9 @@ class _FlureeDbClient:
                 while True:
                     status = await self.client.query.query(select=["*"], ffrom=["_tx/id",tid])
                     if status:
-                        return status
+                        if "error" in status[0]:
+                            raise FlureeException("Transaction failed:" + status[0]["error"])
+                        return status[0]
                     await asyncio.sleep(0.1)
         if api_endpoint not in self.known_endpoints:
             raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
