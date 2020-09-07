@@ -27,6 +27,22 @@ class FlureeQlQuery:
         else:
             raise AttributeError("FlureeQl query has no key defined named " + fqlkey)
 
+class UnsignedGetter:
+    def __init__(self, session, url):
+        self.session = session
+        self.url = url
+    async def __call__(self):
+        if self.session:
+            async with self.session.get(self.url) as resp:
+                if resp.status != 200:
+                    raise FlureeException(await resp.text())
+                response = await resp.text()
+                return json.loads(response)
+        else:
+            print("############# GET ##############")
+            print("url:", self.url)
+            print("################################")
+            return({"dryrun": true})
 
 class SignedPoster:
     def __init__(self, session, signer, url, required, optional, unsigned):
@@ -55,7 +71,11 @@ class SignedPoster:
                 async with self.session.post(self.url, data=body, headers=headers) as resp:
                     if resp.status != 200:
                         raise FlureeException(await resp.text())
-                    return await resp.text()
+                    data = await resp.text()
+                    try:
+                        return json.loads(data)
+                    except:
+                        return data
             else:
                 print("url:", self.url)
                 print("########### HEADERS ############")
@@ -85,6 +105,31 @@ class SignedPoster:
             body, headers, _ = self.signer.sign_query(query_body)
         return await self._post_body_with_headers(body, headers)
 
+class Network:
+    def __init__(self, flureeclient, netname, options):
+        self.client = flureeclient
+        self.netname = netname
+        self.options = options
+    def __getitem__(self, key):
+        database = self.netname + "/" + key
+        if not key in self.options:
+            raise KeyError("No such database: '" + database + "'")
+        return DbFunctor(self.client, database)
+
+class DbFunctor:
+    def __init__(self, client, database):
+        self.client = client
+        self.database=database
+    def __call__(self, privkey, auth_address, sig_validity=120, sig_fuel=1000):
+        return FlureeDbClient(privkey,
+                              auth_address,
+                              self.database,
+                              self.client.host,
+                              self.client.port,
+                              self.client.https,
+                              sig_validity,
+                              sig_fuel,
+                              self.client.session is None) 
 
 class FlureeClient:
     """Basic asynchonous client for FlureeDB for non-database specific APIs"""
@@ -132,7 +177,7 @@ class FlureeClient:
         self.required["add_server"] = set(["server"])
         self.required["delete_server"] = set(["server"])
         self.optional = {"new_db": set(["snapshot"])}
-        self.implemented = set(["dbs", "new_keys", ])
+        self.implemented = set(["dbs", "new_keys", "health"])
     def __getattr__(self, api_endpoint):
         """Select API endpoint
 
@@ -178,6 +223,15 @@ class FlureeClient:
         if use_get:
             return UnsignedGetter(self.session, url)
         return SignedPoster(self.session, self.signer, url, required, optional, unsigned=True)
+    async def __getitem__(self, key):
+        databases = await self.dbs()
+        options = set()
+        for pair in databases:
+            if pair[0] == key:
+                options.add(pair[1])
+        if not bool(options):
+            raise KeyError("No such network: '" + key + "'")
+        return Network(self, key, options)
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
         if self.session:

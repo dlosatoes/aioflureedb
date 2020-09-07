@@ -38,49 +38,31 @@ def get_key_id_from_privkey(privkey):
         return keyid
     return None
 
-async def main(clnt, clnt2):
-    print("MAIN")
+async def fluree_demo(privkey, addr):
+    port = 8090
+    flureeclient = aioflureedb.FlureeClient(privkey, addr, port=8090, dryrun=False)
+    print("Client created")
+    network = await flureeclient["dla"]
+    print("Network OK")
+    db = network["dla"]
+    print("DB OK")
+    database = db(privkey, addr)
+    print("Database client created")
     randomuser = "user-" + str(int(time.time()) % 10000)
-    print("CREATING RANDOM USER:", randomuser)
-    try:
-        transaction = await clnt.command.transaction([{"_id":"_user","username": randomuser}])
-        # Proposed syntactic sugar #1
-        # transaction = await client.command.transaction.create("_user")(username=randomuser).execute()
-        print("OK: TRANSACTION STARTED:", transaction)
-    except Exception as exp:
-        print("FAIL: TRANSACTION FAILED:", exp)
-    print()
-    print("LOOKING UP ALL USERS")
-    try:
-        result = await clnt.query.query({"select": ["*"],"from": "_user"})
-        # Change to allow for syntactic sugar #2 and #3
-        #result = await clnt.query.query.obj({"select": ["*"],"from": "_user"})
-        #
-        # Proposed syntactic sugar #2
-        #result = await clnt.query.query(select=["*"], from="_user")
-        # 
-        # Proposed syntactic sugar #3
-        #result = await clnt.query.query.select(["*"]).from("_user").execute()
-        #
-        print("OK: QUERY SUCCEDED:", result)
-    except Exception as exp:
-        print("FAIL: QUERY FAILED:", exp)
-    print()
-    print("Getting list of DBs")
-    result = await clnt2.dbs()
-    print("OK: QUERY SUCCEDED:", result)
-    await clnt.close_session()
-    await clnt2.close_session()
+    print("Creating user:", randomuser)
+    transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])
+    print("OK: Transaction started,", transaction)
+    result = await database.query.query({"select": ["*"],"from": "_user"})
+    print("Query succeeded, user count =", len(result))
+    await flureeclient.close_session()
+    await database.close_session()
 
-pkey = get_privkey_from_running_docker()
-print("Getting address from key")
-address = get_key_id_from_privkey(pkey)
-print("ADDRESS:", address, pkey)
-print()
-database = "dla/dla"
-port = 8090
-client = aioflureedb.FlureeDbClient(pkey, address, database, port=8090, dryrun=False)
-client2 = aioflureedb.FlureeClient(pkey, address, port=8090, dryrun=False)
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main(client, client2))
+
+
+PKEY = get_privkey_from_running_docker()
+ADDRESS = get_key_id_from_privkey(PKEY)
+LOOP = asyncio.get_event_loop()
+LOOP.run_until_complete(fluree_demo(PKEY, ADDRESS))
+
+
 
