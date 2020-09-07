@@ -28,6 +28,64 @@ class FlureeQlQuery:
             raise AttributeError("FlureeQl query has no key defined named " + fqlkey)
 
 
+class SignedPoster:
+    def __init__(self, session, signer, url, required, optional, unsigned):
+        self.session = session
+        self.signer = signer
+        self.url = url
+        self.required = required
+        self.optional = optional
+        self.unsigned = unsigned
+    async def _post_body_with_headers(self, body, headers):
+            """Internal, post body with HTTP headers
+
+            Parameters
+            ----------
+            body : string
+                   HTTP Body string
+            headers : dict
+                      Key value pairs to use in HTTP POST request
+
+            Returns
+            -------
+            string
+                Content as returned by HTTP server
+            """
+            if self.session:
+                async with self.session.post(self.url, data=body, headers=headers) as resp:
+                    if resp.status != 200:
+                        raise FlureeException(await resp.text())
+                    return await resp.text()
+            else:
+                print("url:", self.url)
+                print("########### HEADERS ############")
+                for key in headers:
+                    print(key,":",headers[key])
+                print("############ BODY ##############")
+                print(body)
+                print("################################")
+                return('{"dryrun": true}')
+    async def __call__(self, **kwargs):
+        kwset = set()
+        kwdict = dict()
+        for key, value in kwargs.items():
+            if not (key in self.required or key in self.optional):
+                raise TypeError("SignedPoster got unexpected keyword argument '" + key + "'")
+            kwset.add(key)
+            if key == "db_id":
+                kwdict[key] = "db/id"
+            else:
+                kwdict[key] = val
+        for reqkey in self.required:
+            if not reqkey in kwset:
+                raise TypeError("SignedPoster is missing one required named argument '", reqkey,"'")
+        body = json.dumps(kwdict, indent=4, sort_keys=True)
+        headers = {"Content-Type": "application/json"}
+        if not self.unsigned:
+            body, headers, _ = self.signer.sign_query(query_body)
+        return await self._post_body_with_headers(body, headers)
+
+
 class FlureeClient:
     """Basic asynchonous client for FlureeDB for non-database specific APIs"""
     def __init__(self,
@@ -61,12 +119,20 @@ class FlureeClient:
         self.host = host
         self.port = port
         self.https = https
-        self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
+        self.signer = DbSigner(privkey, auth_address, None, sig_validity, sig_fuel)
         self.session = None
         if not dryrun:
             self.session = aiohttp.ClientSession()
         self.known_endpoints = set(["dbs","new_db","delete_db","add_server","remove_server","health","new_keys"])
-        self.implemented = set()
+        self.unsigned_endpoints = set(["dbs", "health", "new_keys"])
+        self.use_get = set(["health"])
+        self.required = dict()
+        self.required["new_db"] = set(["db_id"])
+        self.required["delete_db"] = set(["db_id"])
+        self.required["add_server"] = set(["server"])
+        self.required["delete_server"] = set(["server"])
+        self.optional = {"new_db": set(["snapshot"])}
+        self.implemented = set(["dbs", "new_keys", ])
     def __getattr__(self, api_endpoint):
         """Select API endpoint
 
@@ -84,6 +150,34 @@ class FlureeClient:
             raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
         if api_endpoint not in self.implemented:
             raise NotImplementedError("No implementation yet for " + api_endpoint)
+        secure = ""
+        if self.https:
+            secure = "s"
+        url = "http" + \
+              secure + \
+              "://" + \
+              self.host + \
+              ":" + \
+              str(self.port) + \
+              "/fdb/" + \
+              api_endpoint
+        signed = True
+        if api_endpoint in self.unsigned_endpoints:
+            signed = False
+        use_get = False
+        if api_endpoint in self.use_get:
+            use_get = True
+        required = set()
+        if api_endpoint in self.required:
+            required = self.required[api_endpoint]
+        optional = set()
+        if api_endpoint in self.optional:
+            optional = self.optional[api_endpoint]
+        if signed:
+            return SignedPoster(self.session, self.singer, url, required, optional)
+        if use_get:
+            return UnsignedGetter(self.session, url)
+        return SignedPoster(self.session, self.signer, url, required, optional, unsigned=True)
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
         if self.session:
@@ -231,7 +325,7 @@ class FlureeDbClient:
                 body, headers, _ = self.signer.sign_query(query_body)
                 return await self._post_body_with_headers(body, headers)
 
-            async def body_signed(self, transact_obj):
+            async def body_signed(self, transact_obj, deps=None):
                 """Do a HTTP query using body envelope for signing
                 Parameters
                 ----------
@@ -244,7 +338,7 @@ class FlureeDbClient:
                     Return body from server
 
                 """
-                command = self.signer.sign_transaction(transact_obj)
+                command = self.signer.sign_transaction(transact_obj, deps)
                 body = json.dumps(command, indent=4, sort_keys=True)
                 headers = {"content-type": "application/json"}
                 return await self._post_body_with_headers(body, headers)
@@ -299,7 +393,7 @@ class FlureeDbClient:
                 """
                 self.stringendpoint = _StringEndpoint(api_endpoint, client)
 
-            async def transaction(self, transaction_obj):
+            async def transaction(self, transaction_obj, deps=None):
                 """Transact with list of python dicts that should get serialized to JSON,
                 returns a transaction handle for polling FlureeDB if needed.
 
@@ -313,7 +407,7 @@ class FlureeDbClient:
                 string
                     transactio ID of pending transaction
                 """
-                return await self.stringendpoint.body_signed(transaction_obj)
+                return await self.stringendpoint.body_signed(transaction_obj, deps)
 
             async def transaction_checked(self, transaction_obj):
                 """Transact with list of python dicts that should get serialized to JSON,

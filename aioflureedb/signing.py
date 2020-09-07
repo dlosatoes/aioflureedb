@@ -5,6 +5,7 @@ import random
 import time
 import base64
 import hashlib
+import unicodedata
 from email.utils import formatdate
 from datetime import datetime
 from time import mktime
@@ -90,11 +91,11 @@ class DbSigner:
         dict
             Python dict with command and signature fields.
         """
-        rval = self._string_signature(json.dumps(obj))
+        rval = self._string_signature(unicodedata.normalize("NFKC",json.dumps(obj)))
         return rval
 
-    def sign_transaction(self, transaction):
-        """Sign a FlureeDB transaction for use in thr command endpoint
+    def sign_transaction(self, transaction, deps=None):
+        """Sign a FlureeDB transaction for use in the command endpoint
 
         Parameters
         ----------
@@ -115,6 +116,8 @@ class DbSigner:
         nonce = random.randint(0, 9007199254740991)
         obj["nonce"] = nonce
         obj["expire"] = int((time.time() + self.validity)*1000)
+        if deps:
+            obj["deps"] = deps
         rval = self._obj_signature((obj))
         return rval
 
@@ -137,7 +140,7 @@ class DbSigner:
         string
             The URI used for signing.
         """
-        body = json.dumps(param)
+        body = unicodedata.normalize("NFKC",json.dumps(param, separators=(',', ':')))
         uri = "/fdb/" + self.database + "/" + querytype
         stamp = mktime(datetime.now().timetuple())
         mydate = formatdate(timeval=stamp, localtime=False, usegmt=True)
