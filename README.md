@@ -75,7 +75,7 @@ loop.run_until_complete(main(client))
 
 #### Getting a database client from the fluree client
 
-```
+```python
 async def main(clnt):
     privkey2 = "..."
     addr2 = "..."
@@ -133,6 +133,42 @@ These are:
 * query   (database client)
 * command (database client)
 
-Other endpoint may be easy to implement but are currently not yet supported. Pull request with API-endpoint code are very much welcome.
+Some of the other endpoint may be easy to implement, but are currently not yet supported by the code. Pull request with API-endpoint code are very much welcome, as are github project issues that could help prioritize endpoint support.
 
+The first 0.1 release is planned to contain the API as currently defined, unless my call for feedback results in API changes.
 
+### Roadmap for 0.1 version.
+
+* Get feedback from fluree slack
+* Any API changes resulting from feedback
+* Implement dir support for __getattr__ based APIs
+* Get code to pass all pylint and pycodestyle checks
+
+### Not yet implemented/tested (post 0.1):
+
+##### Fluree Client
+* new\_db
+* delete\_db
+* add\_server
+* remove\_server
+* new\_keys
+
+##### Database Client
+* snapshot
+* list\_snapshots
+* export
+* multi\_query
+* block
+* history
+* transact
+* graphql
+* sparql
+* reindex
+* hide
+* gen\_flakes
+* query\_with
+* test\_transact\_with
+* block\_range\_with
+* ledger\_stats
+* storage
+* pw
