@@ -51,7 +51,7 @@ async def fluree_demo(privkey, addr):
     randomuser = "user-" + str(int(time.time()) % 10000)
     print("Creating user:", randomuser)
     transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])
-    print("OK: Transaction started,", transaction)
+    print("OK: Transaction completed,", transaction)
     result = await database.query.query(
         select=["*"],
         ffrom="_user"
