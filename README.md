@@ -8,7 +8,7 @@ This library isn't production stable yet. Please only use for experiments and de
 ```bash
 git clone https://github.com/pibara/aioflureedb.git
 cd aioflureedb
-python3 -m pip install . --process-dependency-links
+python3 -m pip install .
 ```
 
 If you wish to run the test scripts, install the FlureeDB Javascript library:
