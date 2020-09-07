@@ -100,7 +100,9 @@ class DbSigner:
         Parameters
         ----------
         transaction: list
-                    Transaction list with objects for a FlureeDB transaction.
+                     Transaction list with objects for a FlureeDB transaction.
+        deps: list
+                     See flur.ee documentation.
 
         Returns
         -------

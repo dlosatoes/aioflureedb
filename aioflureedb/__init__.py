@@ -5,10 +5,12 @@ import json
 import aiohttp
 from aioflureedb.signing import DbSigner
 class FlureeException(Exception):
+    """Base exception class for aioflureedb"""
     def __init__(self,*args,**kwargs):
         Exception.__init__(self,*args,**kwargs)
 
 class _FlureeQlQuery:
+    """Helper class for FlureeQL query syntactic sugar"""
     def __init__(self, endpoint, method):
         self.endpoint = endpoint
         self.permittedkeys = set(["select","selectOne","selectDistinct","from", "where","block","prefixes","vars","opts"])
@@ -20,11 +22,13 @@ class _FlureeQlQuery:
             if key not in self.permittedkeys:
                 raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
             obj[key] = value
+        print(obj)
         return await self.endpoint.actual_query(obj)
     async def raw(self, obj):
         return await self.endpoint.actual_query(obj)
 
 class _UnsignedGetter:
+    """Get info with a GET instead of a POST"""
     def __init__(self, session, url):
         self.session = session
         self.url = url
@@ -39,9 +43,10 @@ class _UnsignedGetter:
             print("############# GET ##############")
             print("url:", self.url)
             print("################################")
-            return({"dryrun": true})
+            return {"dryrun": true}
 
 class _SignedPoster:
+    """Basic signed HTTP posting"""
     def __init__(self, session, signer, url, required, optional, unsigned):
         self.session = session
         self.signer = signer
@@ -50,38 +55,38 @@ class _SignedPoster:
         self.optional = optional
         self.unsigned = unsigned
     async def _post_body_with_headers(self, body, headers):
-            """Internal, post body with HTTP headers
+        """Internal, post body with HTTP headers
 
-            Parameters
-            ----------
-            body : string
-                   HTTP Body string
-            headers : dict
-                      Key value pairs to use in HTTP POST request
+        Parameters
+        ----------
+        body : string
+               HTTP Body string
+        headers : dict
+                    Key value pairs to use in HTTP POST request
 
-            Returns
-            -------
-            string
-                Content as returned by HTTP server
-            """
-            if self.session:
-                async with self.session.post(self.url, data=body, headers=headers) as resp:
-                    if resp.status != 200:
-                        raise FlureeException(await resp.text())
-                    data = await resp.text()
-                    try:
-                        return json.loads(data)
-                    except:
-                        return data
-            else:
-                print("url:", self.url)
-                print("########### HEADERS ############")
-                for key in headers:
-                    print(key,":",headers[key])
-                print("############ BODY ##############")
-                print(body)
-                print("################################")
-                return('{"dryrun": true}')
+        Returns
+        -------
+        string
+            Content as returned by HTTP server
+        """
+        if self.session:
+            async with self.session.post(self.url, data=body, headers=headers) as resp:
+                if resp.status != 200:
+                    raise FlureeException(await resp.text())
+                data = await resp.text()
+                try:
+                    return json.loads(data)
+                except:
+                    return data
+        else:
+            print("url:", self.url)
+            print("########### HEADERS ############")
+            for key in headers:
+                print(key,":",headers[key])
+            print("############ BODY ##############")
+            print(body)
+            print("################################")
+            return '{"dryrun": true}'
     async def __call__(self, **kwargs):
         kwset = set()
         kwdict = dict()
@@ -103,6 +108,7 @@ class _SignedPoster:
         return await self._post_body_with_headers(body, headers)
 
 class _Network:
+    """Helper class for square bracket interface to Fluree Client"""
     def __init__(self, flureeclient, netname, options):
         self.client = flureeclient
         self.netname = netname
@@ -114,6 +120,7 @@ class _Network:
         return _DbFunctor(self.client, database)
 
 class _DbFunctor:
+    """Other helper class for square bracket interface to Fluree Client"""
     def __init__(self, client, database):
         self.client = client
         self.database=database
@@ -126,7 +133,7 @@ class _DbFunctor:
                               self.client.https,
                               sig_validity,
                               sig_fuel,
-                              self.client.session is None) 
+                              self.client.session is None)
 
 class FlureeClient:
     """Basic asynchonous client for FlureeDB for non-database specific APIs"""
@@ -358,7 +365,7 @@ class _FlureeDbClient:
                     print("############ BODY ##############")
                     print(body)
                     print("################################")
-                    return('{"dryrun": true}')
+                    return '{"dryrun": true}'
 
             async def header_signed(self, query_body):
                 """Do a HTTP query using headers for signing
@@ -442,9 +449,10 @@ class _FlureeDbClient:
                 client: object
                         The wrapping _FlureeDbClient
                 """
+                self.client = client
                 self.stringendpoint = _StringEndpoint(api_endpoint, client)
 
-            async def transaction(self, transaction_obj, deps=None):
+            async def transaction(self, transaction_obj, deps=None, do_await=True):
                 """Transact with list of python dicts that should get serialized to JSON,
                 returns a transaction handle for polling FlureeDB if needed.
 
@@ -458,32 +466,17 @@ class _FlureeDbClient:
                 string
                     transactio ID of pending transaction
                 """
-                return await self.stringendpoint.body_signed(transaction_obj, deps)
-
-            async def transaction_checked(self, transaction_obj):
-                """Transact with list of python dicts that should get serialized to JSON,
-                returns an awaitable that resolves only when the transaction has finaly
-                failed or succeeded.
-
-                Parameters
-                ----------
-                transaction_obj : list
-                               Transaction list
-
-                Returns
-                -------
-                bool
-                    success or failure if the treansaction
-
-                Raises
-                ------
-                NotImplementedError
-                    Method isn't actually implemented yet.
-                """
-                raise NotImplementedError("No checked transactions implemented so far.")
-
+                tid = await self.stringendpoint.body_signed(transaction_obj, deps)
+                tid = tid[1:-1]
+                if not do_await:
+                    return tid
+                while True:
+                    status = await self.client.query.query(select=["*"], ffrom=["_tx/id",tid])
+                    if status:
+                        return status
+                    await asyncio.sleep(0.1)
         if api_endpoint not in self.known_endpoints:
-            raise AttributeError("FlureeDB has no endpoint named " + api_endpoint) 
+            raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
         if api_endpoint not in self.implemented:
             raise NotImplementedError("No implementation yet for " + api_endpoint)
         if api_endpoint in ["command"]:
