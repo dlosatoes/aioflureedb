@@ -141,7 +141,6 @@ The first 0.1 release is planned to contain the API as currently defined, unless
 * Get feedback from fluree slack
 * Any API changes resulting from feedback
 * Implement dir support for __getattr__ based APIs
-* Get code to pass all pylint and pycodestyle checks
 
 ### Not yet implemented/tested (post 0.1):
 

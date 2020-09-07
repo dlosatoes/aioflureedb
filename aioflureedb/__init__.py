@@ -1,14 +1,17 @@
 #!/usr/bin/python3
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
+# pylint: disable=too-many-instance-attributes
 """Basic asynchonous client library for FlureeDB"""
 import asyncio
 import json
 import aiohttp
 from aioflureedb.signing import DbSigner
+
+
 class FlureeException(Exception):
     """Base exception class for aioflureedb"""
-    def __init__(self,*args,**kwargs):
+    def __init__(self, *args, **kwargs):
         """Constructor
 
         Parameters
@@ -18,7 +21,8 @@ class FlureeException(Exception):
         kwargs : dict
                  Dictionary with named arguments for passing to base class.
         """
-        Exception.__init__(self,*args,**kwargs)
+        Exception.__init__(self, *args, **kwargs)
+
 
 class _FlureeQlQuery:
     """Helper class for FlureeQL query syntactic sugar"""
@@ -31,7 +35,16 @@ class _FlureeQlQuery:
                    API endpoint for communicating FlureeQL queries with FlureeDB
         """
         self.endpoint = endpoint
-        self.permittedkeys = set(["select","selectOne","selectDistinct","from", "where","block","prefixes","vars","opts"])
+        self.permittedkeys = set(["select",
+                                  "selectOne",
+                                  "selectDistinct",
+                                  "from",
+                                  "where",
+                                  "block",
+                                  "prefixes",
+                                  "vars",
+                                  "opts"])
+
     async def __call__(self, **kwargs):
         """FlureeQl query construction through keyword arguments
 
@@ -58,6 +71,7 @@ class _FlureeQlQuery:
                 raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
             obj[key] = value
         return await self.endpoint.actual_query(obj)
+
     async def raw(self, obj):
         """Use a readily constructed FlureeQL dictionary object to invoke the query API endpoint.
 
@@ -87,6 +101,7 @@ class _UnsignedGetter:
         """
         self.session = session
         self.url = url
+
     async def __call__(self):
         """Invoke the functor
 
@@ -112,9 +127,10 @@ class _UnsignedGetter:
             print("################################")
             return {"dryrun": True}
 
+
 class _SignedPoster:
     """Basic signed HTTP posting"""
-    def __init__(self, session, signer, url, required, optional, unsigned):
+    def __init__(self, session, signer, url, required, optional, unsigned=False):
         """Constructor
 
         Parameters
@@ -138,6 +154,7 @@ class _SignedPoster:
         self.required = required
         self.optional = optional
         self.unsigned = unsigned
+
     async def _post_body_with_headers(self, body, headers):
         """Internal, post body with HTTP headers
 
@@ -165,17 +182,18 @@ class _SignedPoster:
                 data = await resp.text()
                 try:
                     return json.loads(data)
-                except:
+                except json.decoder.JSONDecodeError:
                     return data
         else:
             print("url:", self.url)
             print("########### HEADERS ############")
             for key in headers:
-                print(key,":",headers[key])
+                print(key, ":", headers[key])
             print("############ BODY ##############")
             print(body)
             print("################################")
             return {"dryrun": True}
+
     async def __call__(self, **kwargs):
         """Invoke post API
 
@@ -203,15 +221,16 @@ class _SignedPoster:
             if key == "db_id":
                 kwdict[key] = "db/id"
             else:
-                kwdict[key] = val
+                kwdict[key] = value
         for reqkey in self.required:
-            if not reqkey in kwset:
-                raise TypeError("SignedPoster is missing one required named argument '", reqkey,"'")
+            if reqkey not in kwset:
+                raise TypeError("SignedPoster is missing one required named argument '", reqkey, "'")
         body = json.dumps(kwdict, indent=4, sort_keys=True)
         headers = {"Content-Type": "application/json"}
         if not self.unsigned:
-            body, headers, _ = self.signer.sign_query(query_body)
+            body, headers, _ = self.signer.sign_query(body)
         return await self._post_body_with_headers(body, headers)
+
 
 class _Network:
     """Helper class for square bracket interface to Fluree Client"""
@@ -230,6 +249,7 @@ class _Network:
         self.client = flureeclient
         self.netname = netname
         self.options = options
+
     def __getitem__(self, key):
         """Square brackets operator
 
@@ -249,9 +269,10 @@ class _Network:
             When a non defined database is requested.
         """
         database = self.netname + "/" + key
-        if not key in self.options:
+        if key not in self.options:
             raise KeyError("No such database: '" + database + "'")
         return _DbFunctor(self.client, database)
+
 
 class _DbFunctor:
     """Helper functor class for square bracket interface to Fluree Client"""
@@ -266,7 +287,8 @@ class _DbFunctor:
                    Full database name
         """
         self.client = client
-        self.database=database
+        self.database = database
+
     def __call__(self, privkey, auth_address, sig_validity=120, sig_fuel=1000):
         """Invoke functor
 
@@ -274,25 +296,27 @@ class _DbFunctor:
         ----------
         privkey : string
                   Private key for the specific DB.
-        auth_address : atring
+        auth_address : string
                   Auth ID belonging with the privkey
         sig_validity : int
                        Validity in seconda of signatures.
         sig_fuel : int
                    Not sure what this is for, consult FlureeDB documentation for info.
-        Returns:
+        Returns
+        -------
          _FlureeDbClient
             FlureeClient derived client for a specific DB
         """
         return _FlureeDbClient(privkey,
-                              auth_address,
-                              self.database,
-                              self.client.host,
-                              self.client.port,
-                              self.client.https,
-                              sig_validity,
-                              sig_fuel,
-                              self.client.session is None)
+                               auth_address,
+                               self.database,
+                               self.client.host,
+                               self.client.port,
+                               self.client.https,
+                               sig_validity,
+                               sig_fuel,
+                               self.client.session is None)
+
 
 class FlureeClient:
     """Basic asynchonous client for FlureeDB for non-database specific APIs"""
@@ -323,6 +347,8 @@ class FlureeClient:
                    Validity in seconda of the signature.
         sig_fuel : int
                    Not sure what this is for, consult FlureeDB documentation for info.
+        dryrun : bool
+                  Don't use HTTP, simply print queries/transactions instead
         """
         self.host = host
         self.port = port
@@ -331,7 +357,13 @@ class FlureeClient:
         self.session = None
         if not dryrun:
             self.session = aiohttp.ClientSession()
-        self.known_endpoints = set(["dbs","new_db","delete_db","add_server","remove_server","health","new_keys"])
+        self.known_endpoints = set(["dbs",
+                                    "new_db",
+                                    "delete_db",
+                                    "add_server",
+                                    "remove_server",
+                                    "health",
+                                    "new_keys"])
         self.unsigned_endpoints = set(["dbs", "health", "new_keys"])
         self.use_get = set(["health"])
         self.required = dict()
@@ -341,6 +373,7 @@ class FlureeClient:
         self.required["delete_server"] = set(["server"])
         self.optional = {"new_db": set(["snapshot"])}
         self.implemented = set(["dbs", "new_keys", "health"])
+
     def __getattr__(self, api_endpoint):
         """Select API endpoint
 
@@ -393,6 +426,7 @@ class FlureeClient:
         if use_get:
             return _UnsignedGetter(self.session, url)
         return _SignedPoster(self.session, self.signer, url, required, optional, unsigned=True)
+
     async def __getitem__(self, key):
         """Square bracket operator
 
@@ -419,12 +453,12 @@ class FlureeClient:
         if not bool(options):
             raise KeyError("No such network: '" + key + "'")
         return _Network(self, key, options)
+
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
         if self.session:
             await self.session.close()
         return
-
 
 
 class _FlureeDbClient:
@@ -459,6 +493,8 @@ class _FlureeDbClient:
                    Validity in seconda of the signature.
         sig_fuel : int
                    Not sure what this is for, consult FlureeDB documentation for info.
+        dryrun : bool
+                 Don't use HTTP, simply print queries/transactions instead
         """
         self.database = database
         self.host = host
@@ -468,8 +504,27 @@ class _FlureeDbClient:
         self.session = None
         if not dryrun:
             self.session = aiohttp.ClientSession()
-        self.known_endpoints = set(["snapshot","list_snapshots","export","query","multi_query","block","history","transact","graphql","sparql","command","reindex","hide","gen_flakes","query_with","test_transact_with","block_range_with","ledger_stats","storage","pw"])
-        self.pw_endpoints = set(["generate","renew","login"])
+        self.known_endpoints = set(["snapshot",
+                                    "list_snapshots",
+                                    "export",
+                                    "query",
+                                    "multi_query",
+                                    "block",
+                                    "history",
+                                    "transact",
+                                    "graphql",
+                                    "sparql",
+                                    "command",
+                                    "reindex",
+                                    "hide",
+                                    "gen_flakes",
+                                    "query_with",
+                                    "test_transact_with",
+                                    "block_range_with",
+                                    "ledger_stats",
+                                    "storage",
+                                    "pw"])
+        self.pw_endpoints = set(["generate", "renew", "login"])
         self.implemented = set(["query", "command"])
 
     async def close_session(self):
@@ -490,6 +545,13 @@ class _FlureeDbClient:
         -------
         object
             Endpoint object suitable for API endpoint.
+
+        Raises
+        ------
+        NotImplementedError
+            Defined endpoint without library implementation (for now)
+        AttributeError
+            Undefined API endpoint invoked
         """
         class _StringEndpoint:
             def __init__(self, api_endpoint, client):
@@ -532,6 +594,11 @@ class _FlureeDbClient:
                 -------
                 string
                     Content as returned by HTTP server
+
+                Raises
+                ------
+                FlureeException
+                    When HTTP status from fluree server is anything other than 200
                 """
                 if self.session:
                     async with self.session.post(self.url, data=body, headers=headers) as resp:
@@ -542,7 +609,7 @@ class _FlureeDbClient:
                     print("url:", self.url)
                     print("########### HEADERS ############")
                     for key in headers:
-                        print(key,":",headers[key])
+                        print(key, ":", headers[key])
                     print("############ BODY ##############")
                     print(body)
                     print("################################")
@@ -595,11 +662,29 @@ class _FlureeDbClient:
                         The wrapping _FlureeDbClient
                 """
                 self.stringendpoint = _StringEndpoint(api_endpoint, client)
+
             def __getattr__(self, method):
+                """query
+
+                Parameters
+                ----------
+                method : string
+                         should be 'query'
+
+                Returns
+                -------
+                _FlureeQlQuery
+                    Helper class for creating FlureeQl queries.
+
+                Raises
+                ------
+                AttributeError
+                    When anything other than 'query' is provided as method.
+                """
                 if api_endpoint == "query":
                     return _FlureeQlQuery(self)
-                else:
-                    raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
+                raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
+
             async def actual_query(self, query_object):
                 """Query wit a python dict that should get JSON serialized and convert JSON
                    response back into a pthhon object
@@ -645,13 +730,18 @@ class _FlureeDbClient:
                 -------
                 string
                     transactio ID of pending transaction
+
+                Raises
+                ------
+                FlureeException
+                    When transaction fails
                 """
                 tid = await self.stringendpoint.body_signed(transaction_obj, deps)
                 tid = tid[1:-1]
                 if not do_await:
                     return tid
                 while True:
-                    status = await self.client.query.query(select=["*"], ffrom=["_tx/id",tid])
+                    status = await self.client.query.query(select=["*"], ffrom=["_tx/id", tid])
                     if status:
                         if "error" in status[0]:
                             raise FlureeException("Transaction failed:" + status[0]["error"])

@@ -91,7 +91,7 @@ class DbSigner:
         dict
             Python dict with command and signature fields.
         """
-        rval = self._string_signature(unicodedata.normalize("NFKC",json.dumps(obj)))
+        rval = self._string_signature(unicodedata.normalize("NFKC", json.dumps(obj)))
         return rval
 
     def sign_transaction(self, transaction, deps=None):
@@ -142,7 +142,7 @@ class DbSigner:
         string
             The URI used for signing.
         """
-        body = unicodedata.normalize("NFKC",json.dumps(param, separators=(',', ':')))
+        body = unicodedata.normalize("NFKC", json.dumps(param, separators=(',', ':')))
         uri = "/fdb/" + self.database + "/" + querytype
         stamp = mktime(datetime.now().timetuple())
         mydate = formatdate(timeval=stamp, localtime=False, usegmt=True)
@@ -157,6 +157,9 @@ class DbSigner:
         headers = dict()
         headers["Content-Type"] = "application/json"
         headers["X-Fluree-Date"] = mydate
-        headers["Signature"] = 'keyId="na",headers="(request-target) x-fluree-date digest",algorithm="ecdsa-sha256",signature="' + hexder + '"'
+        headers["Signature"] = \
+            'keyId="na",headers="(request-target) x-fluree-date digest",algorithm="ecdsa-sha256",signature="' + \
+            hexder + \
+            '"'
         headers["Digest"] = "SHA-256=" + b64digest
         return body, headers, uri
