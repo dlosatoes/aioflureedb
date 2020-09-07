@@ -46,7 +46,6 @@ command_json = json.dumps(command, indent=4, sort_keys=True)
 ```
 
 #### Signing a query
-This is currently an untested part of the library.
 
 ```python
 query = {"foo": 42, "bar": "appelvlaai"}
