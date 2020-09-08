@@ -273,6 +273,20 @@ class _Network:
             raise KeyError("No such database: '" + database + "'")
         return _DbFunctor(self.client, database)
 
+    def __iter__(self):
+        """Iterate over databases in network
+
+        Yields
+        ------
+        string
+            Name of the database
+        _DbFunctor
+            Function object for getting a FlureeDB database object for this particular DB.
+        """
+        for key in self.options:
+            database = self.netname + "/" + key
+            yield key, _DbFunctor(self.client, database)
+
 
 class _DbFunctor:
     """Helper functor class for square bracket interface to Fluree Client"""
@@ -453,6 +467,27 @@ class FlureeClient:
         if not bool(options):
             raise KeyError("No such network: '" + key + "'")
         return _Network(self, key, options)
+
+    async def __aiter__(self):
+        """Iterate over all networks
+
+        Yields
+        ------
+        string
+            Name of the network
+        _Network
+            Itteratable object with databases per network.
+        """
+        databases = await self.dbs()
+        optionsmap = dict()
+        for pair in databases:
+            network = pair[0]
+            database = pair[1]
+            if network not in optionsmap:
+                optionsmap[network] = set()
+            optionsmap[network].add(database)
+        for key in optionsmap:
+            yield key, _Network(self, key, optionsmap[key])
 
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""

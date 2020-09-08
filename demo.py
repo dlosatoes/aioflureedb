@@ -42,6 +42,10 @@ async def fluree_demo(privkey, addr):
     port = 8090
     flureeclient = aioflureedb.FlureeClient(privkey, addr, port=8090, dryrun=False)
     print("Client created")
+    async for netname, network in flureeclient:
+        print("### NET:",netname)
+        for dbname, db in network:
+            print("   -", dbname)
     network = await flureeclient["dla"]
     print("Network OK")
     db = network["dla"]

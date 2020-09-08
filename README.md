@@ -139,7 +139,6 @@ The first 0.1 release is planned to contain the API as currently defined, unless
 ### Roadmap for 0.1 version.
 
 * Implement dir support for __getattr__ based APIs
-* Implement "for in" and keys() support for networks and databases square brackets API.
 * Add some walk through code for non-happy-paths
 * Get feedback from fluree slack
 * Any API changes resulting from feedback
