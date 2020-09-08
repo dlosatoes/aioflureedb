@@ -368,7 +368,7 @@ class _DbFunctor:
         self.client = client
         self.database = database
 
-    def __call__(self, privkey, auth_address, sig_validity=120, sig_fuel=1000):
+    def __call__(self, privkey=None, auth_address=None, sig_validity=120, sig_fuel=1000):
         """Invoke functor
 
         Parameters

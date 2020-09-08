@@ -39,6 +39,8 @@ def get_key_id_from_privkey(privkey):
     return None
 
 async def fluree_demo(privkey, addr):
+    print(privkey)
+    print(addr)
     port = 8090
     flureeclient = aioflureedb.FlureeClient(privkey, addr, port=8090, dryrun=False)
     print("Client created")

@@ -140,8 +140,6 @@ The first 0.1 release is planned to contain the API as currently defined, unless
 
 * Implement dir support for __getattr__ based APIs
 * Add some walk through code for non-happy-paths
-* Get feedback from fluree slack
-* Any API changes resulting from feedback
 
 ### Not yet implemented/tested (post 0.1):
 
