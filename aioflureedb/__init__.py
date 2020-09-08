@@ -24,6 +24,69 @@ class FlureeException(Exception):
         Exception.__init__(self, *args, **kwargs)
 
 
+class FlureeHttpError(FlureeException):
+    """Non 200 HTTP response"""
+    def __init__(self, status, *args, **kwargs):
+        """Constructor
+
+        Parameters
+        ----------
+        status : int
+                 HTTP status code
+        args : list
+               List of positional arguments for passing to base class.
+        kwargs : dict
+                 Dictionary with named arguments for passing to base class.
+        """
+        self.status = status
+        FlureeException.__init__(self, *args, **kwargs)
+
+
+class FlureeHalfCredentials(FlureeException):
+    """Incomplete credentials"""
+    def __init__(self, *args, **kwargs):
+        """Constructor
+
+        Parameters
+        ----------
+        args : list
+               List of positional arguments for passing to base class.
+        kwargs : dict
+                 Dictionary with named arguments for passing to base class.
+        """
+        FlureeException.__init__(self, *args, **kwargs)
+
+
+class FlureeKeyRequired(FlureeException):
+    """Endpoint invoked that requires signing but no signing key available"""
+    def __init__(self, *args, **kwargs):
+        """Constructor
+
+        Parameters
+        ----------
+        args : list
+               List of positional arguments for passing to base class.
+        kwargs : dict
+                 Dictionary with named arguments for passing to base class.
+        """
+        FlureeException.__init__(self, *args, **kwargs)
+
+
+class FlureeTransactionFailure(FlureeException):
+    """Fluree transaction failed"""
+    def __init__(self, *args, **kwargs):
+        """Constructor
+
+        Parameters
+        ----------
+        args : list
+               List of positional arguments for passing to base class.
+        kwargs : dict
+                 Dictionary with named arguments for passing to base class.
+        """
+        FlureeException.__init__(self, *args, **kwargs)
+
+
 class _FlureeQlQuery:
     """Helper class for FlureeQL query syntactic sugar"""
     def __init__(self, endpoint):
@@ -112,13 +175,13 @@ class _UnsignedGetter:
 
         Raises
         ------
-        FlureeException
+        FlureeHttpError
             If the server returns something different than a 200 OK status
         """
         if self.session:
             async with self.session.get(self.url) as resp:
                 if resp.status != 200:
-                    raise FlureeException(await resp.text())
+                    raise FlureeHttpError(resp.status, await resp.text())
                 response = await resp.text()
                 return json.loads(response)
         else:
@@ -154,6 +217,8 @@ class _SignedPoster:
         self.required = required
         self.optional = optional
         self.unsigned = unsigned
+        if self.signer is None:
+            self.unsigned = True
 
     async def _post_body_with_headers(self, body, headers):
         """Internal, post body with HTTP headers
@@ -172,13 +237,13 @@ class _SignedPoster:
 
         Raises
         ------
-        FlureeException
+        FlureeHttpError
             When Fluree server returns a status code other than 200
         """
         if self.session:
             async with self.session.post(self.url, data=body, headers=headers) as resp:
                 if resp.status != 200:
-                    raise FlureeException(await resp.text())
+                    raise FlureeHttpError(resp.status, await resp.text())
                 data = await resp.text()
                 try:
                     return json.loads(data)
@@ -335,8 +400,8 @@ class _DbFunctor:
 class FlureeClient:
     """Basic asynchonous client for FlureeDB for non-database specific APIs"""
     def __init__(self,
-                 privkey,
-                 auth_address,
+                 privkey=None,
+                 auth_address=None,
                  host="localhost",
                  port=8080,
                  https=False,
@@ -363,11 +428,20 @@ class FlureeClient:
                    Not sure what this is for, consult FlureeDB documentation for info.
         dryrun : bool
                   Don't use HTTP, simply print queries/transactions instead
+
+        Raises
+        ------
+        FlureeHalfCredentials
+            If privkey is specified but auth_address isn't, or the other way around.
         """
         self.host = host
         self.port = port
         self.https = https
-        self.signer = DbSigner(privkey, auth_address, None, sig_validity, sig_fuel)
+        self.signer = None
+        if privkey and auth_address:
+            self.signer = DbSigner(privkey, auth_address, None, sig_validity, sig_fuel)
+        if privkey and not auth_address or auth_address and not privkey:
+            raise FlureeHalfCredentials("privkey and auth_address should either both be specified, or neither")
         self.session = None
         if not dryrun:
             self.session = aiohttp.ClientSession()
@@ -436,7 +510,7 @@ class FlureeClient:
         if api_endpoint in self.optional:
             optional = self.optional[api_endpoint]
         if signed:
-            return _SignedPoster(self.session, self.singer, url, required, optional)
+            return _SignedPoster(self.session, self.signer, url, required, optional)
         if use_get:
             return _UnsignedGetter(self.session, url)
         return _SignedPoster(self.session, self.signer, url, required, optional, unsigned=True)
@@ -535,7 +609,9 @@ class _FlureeDbClient:
         self.host = host
         self.port = port
         self.https = https
-        self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
+        self.signer = None
+        if privkey and auth_address:
+            self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
         self.session = None
         if not dryrun:
             self.session = aiohttp.ClientSession()
@@ -587,6 +663,8 @@ class _FlureeDbClient:
             Defined endpoint without library implementation (for now)
         AttributeError
             Undefined API endpoint invoked
+        FlureeKeyRequired
+            When 'command' endpoint is invoked in open-API mode.
         """
         class _StringEndpoint:
             def __init__(self, api_endpoint, client):
@@ -632,13 +710,13 @@ class _FlureeDbClient:
 
                 Raises
                 ------
-                FlureeException
+                FlureeHttpError
                     When HTTP status from fluree server is anything other than 200
                 """
                 if self.session:
                     async with self.session.post(self.url, data=body, headers=headers) as resp:
                         if resp.status != 200:
-                            raise FlureeException(await resp.text())
+                            raise FlureeHttpError(await resp.text())
                         return await resp.text()
                 else:
                     print("url:", self.url)
@@ -663,7 +741,11 @@ class _FlureeDbClient:
                 string
                     Return body from server
                 """
-                body, headers, _ = self.signer.sign_query(query_body)
+                if self.signer:
+                    body, headers, _ = self.signer.sign_query(query_body)
+                else:
+                    body = json.dumps(query_body, indent=4, sort_keys=True)
+                    headers = {"Content-Type": "application/json"}
                 return await self._post_body_with_headers(body, headers)
 
             async def body_signed(self, transact_obj, deps=None):
@@ -768,7 +850,7 @@ class _FlureeDbClient:
 
                 Raises
                 ------
-                FlureeException
+                FlureeTransactionFailure
                     When transaction fails
                 """
                 tid = await self.stringendpoint.body_signed(transaction_obj, deps)
@@ -779,7 +861,7 @@ class _FlureeDbClient:
                     status = await self.client.query.query(select=["*"], ffrom=["_tx/id", tid])
                     if status:
                         if "error" in status[0]:
-                            raise FlureeException("Transaction failed:" + status[0]["error"])
+                            raise FlureeTransactionFailure("Transaction failed:" + status[0]["error"])
                         return status[0]
                     await asyncio.sleep(0.1)
         if api_endpoint not in self.known_endpoints:
@@ -787,5 +869,7 @@ class _FlureeDbClient:
         if api_endpoint not in self.implemented:
             raise NotImplementedError("No implementation yet for " + api_endpoint)
         if api_endpoint in ["command"]:
+            if self.signer is None:
+                raise FlureeKeyRequired("Command endpoint not supported in open-API mode. privkey required!")
             return TransactionEndpoint(api_endpoint, self)
         return FlureeQlEndpoint(api_endpoint, self)
