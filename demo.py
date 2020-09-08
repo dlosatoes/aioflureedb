@@ -43,6 +43,7 @@ async def fluree_demo(privkey, addr):
     print(addr)
     port = 8090
     flureeclient = aioflureedb.FlureeClient(privkey, addr, port=8090, dryrun=False)
+    print("ENDPOINTS:", dir(flureeclient))
     print("Client created")
     async for netname, network in flureeclient:
         print("### NET:",netname)
@@ -54,6 +55,7 @@ async def fluree_demo(privkey, addr):
     print("DB OK")
     database = db(privkey, addr)
     print("Database client created")
+    print("ENDPOINTS:", dir(database))
     randomuser = "user-" + str(int(time.time()) % 10000)
     print("Creating user:", randomuser)
     transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])

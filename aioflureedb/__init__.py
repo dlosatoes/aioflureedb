@@ -462,6 +462,21 @@ class FlureeClient:
         self.optional = {"new_db": set(["snapshot"])}
         self.implemented = set(["dbs", "new_keys", "health"])
 
+    def __dir__(self):
+        """Dir function for class
+
+        Returns
+        -------
+        list
+            List of defined (pseudo) attributes
+        """
+        return list(self.known_endpoints) + ["close_session",
+                                             "__init__",
+                                             "__dir__",
+                                             "__getattr__",
+                                             "__getitem__",
+                                             "__aiter__"]
+
     def __getattr__(self, api_endpoint):
         """Select API endpoint
 
@@ -644,6 +659,19 @@ class _FlureeDbClient:
             await self.session.close()
         return
 
+    def __dir__(self):
+        """Dir function for class
+
+        Returns
+        -------
+        list
+            List of defined (pseudo) attributes
+        """
+        return list(self.known_endpoints) + ["close_session",
+                                             "__init__",
+                                             "__dir__",
+                                             "__getattr__"]
+
     def __getattr__(self, api_endpoint):
         """Select API endpoint
 
@@ -779,6 +807,16 @@ class _FlureeDbClient:
                         The wrapping _FlureeDbClient
                 """
                 self.stringendpoint = _StringEndpoint(api_endpoint, client)
+
+            def __dir__(self):
+                """Dir function for class
+
+                Returns
+                -------
+                list
+                    List of defined (pseudo) attributes
+                """
+                return ["query", "actual_query", "__dir__", "__init__"]
 
             def __getattr__(self, method):
                 """query

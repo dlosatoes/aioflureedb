@@ -138,7 +138,6 @@ The first 0.1 release is planned to contain the API as currently defined, unless
 
 ### Roadmap for 0.1 version.
 
-* Implement dir support for __getattr__ based APIs
 * Add some walk through code for non-happy-paths
 
 ### Not yet implemented/tested (post 0.1):
