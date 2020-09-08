@@ -30,14 +30,39 @@ def get_privkey_from_running_docker():
 
 def get_key_id_from_privkey(privkey):
     if privkey:
+        # Try generating the key-id from the private key using starkbank-ecdsa
         private_key = privateKey.PrivateKey.fromString(bytes.fromhex(privkey))
         public_key = private_key.publicKey()
+        pk = b'\x04' + public_key.toString().encode("latin1")
+        h3 = hashlib.sha256()
+        h4 = h2 = hashlib.new('ripemd160')
+        h3.update(pk)
+        h4.update(h3.digest())
+        core2 =  b'\x0f\x02' + h4.digest()
+        h5 = hashlib.sha256()
+        h6 = hashlib.sha256()
+        h5.update(core2)
+        h6.update(h5.digest())
+        keyid2 = base58.b58encode(core2 + h6.digest()[:4]).decode()
+
+        # Doing the same with bitcoinlib
         core = b'\x0f\x02' + base58.b58decode(bitcoinlib.keys.Key(privkey).address())[1:-4]
         h1 = hashlib.sha256()
         h2 = hashlib.sha256()
         h1.update(core)
         h2.update(h1.digest())
         keyid = base58.b58encode(core + h2.digest()[:4]).decode()
+
+        # Check is they are the same
+        if keyid != keyid2:
+            print("OOPS", keyid, "!=", keyid2)
+            print(core.hex())
+            print(core2.hex())
+            print()
+        else:
+            print("IDENTICAL")
+            print()
+        # Return the bitcoinlib version
         return keyid
     return None
 
