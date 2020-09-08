@@ -30,19 +30,20 @@ async def fluree_main(privkey, addr):
 
 In the 0.1 version of the API, all supported signed operations are on an existing database, so the below isn't usefull yet, but for the importance of a stable API, you can provide a private key and key id. These will be used when non-existing-db related signed operations get implemented (new\_db, delete\_db, add\_server, remove\_server). 
 ```python
-async def fluree_main(privkey, addr):
-    flureeclient = aioflureedb.FlureeClient(privkey, addr)
+async def fluree_main(masterkey=privkey, addr):
+    flureeclient = aioflureedb.FlureeClient(masterkey=privkey, auth_addressaddr)
     ...
 ```
 
 There are some optional arguments to the constructor of the FlureeClient. 
 ```python
 async def fluree_main(privkey, addr):
-    flureeclient = aioflureedb.FlureeClient(privkey, 
-                                            addr,
+    flureeclient = aioflureedb.FlureeClient(masterkey=privkey, 
+                                            auth_address=addr,
                                             host="fluree.demo.com",
                                             port=443,
                                             https=True,
+                                            ssl_verify=False,
                                             sig_validity=600,
                                             sig_fuel=4321)
     ...
@@ -61,9 +62,21 @@ Once we have a FlureeClient, we can use it to itterate over the avilable network
 ```python
 async def fluree_main(privkey, addr):
     flureeclient = aioflureedb.FlureeClient()
-    async for netname, network in flureeclient:
-        for dbname, db in network:
+    async for network in flureeclient:
+        for db in network:
             database = db(privkey, addr)
+            ...
+```
+
+If needed, network and database itterator can be converted to strings
+
+```python
+async def fluree_main(privkey, addr):
+    flureeclient = aioflureedb.FlureeClient()
+    async for network in flureeclient:
+        for db in network:
+            netname = str(network)
+            dbname = str(db)
             ...
 ```
 
@@ -101,6 +114,16 @@ async def fluree_main(privkey1, addr1, privkey2, addr2):
     ...
 ```
 
+Or for convenience: 
+
+```python
+async def fluree_main(privkey1, addr1, privkey2, addr2):
+    flureeclient = aioflureedb.FlureeClient(privkey1, addr1)
+    db = await flureeclient["dev/main"]
+    database = db(privkey2, addr2)
+    ...
+```
+
 In case of an open API fluree host, no signing keys are needed. 
 ```python
 async def fluree_main():
@@ -133,6 +156,20 @@ async def fluree_main(privkey, addr):
    result = await database.query.query.raw({"select": ["*"]. "from": "_user"})
    ...
 ```
+
+There is an alias *flureeql* for the query endpoint for eastetic reasons.
+
+```python
+async def fluree_main(privkey, addr):
+   ...
+   database = db(privkey, addr)
+   result = await database.flureeql.query(
+        select=["*"],
+        ffrom="_user"
+   )
+   ...
+```
+
 
 ### Transactions
 

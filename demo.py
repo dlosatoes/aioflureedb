@@ -5,6 +5,7 @@ import time
 import subprocess
 import aioflureedb
 import bitcoinlib
+from ellipticcurve import privateKey, ecdsa
 import base58
 
 def get_privkey_from_running_docker():
@@ -29,6 +30,8 @@ def get_privkey_from_running_docker():
 
 def get_key_id_from_privkey(privkey):
     if privkey:
+        private_key = privateKey.PrivateKey.fromString(bytes.fromhex(privkey))
+        public_key = private_key.publicKey()
         core = b'\x0f\x02' + base58.b58decode(bitcoinlib.keys.Key(privkey).address())[1:-4]
         h1 = hashlib.sha256()
         h2 = hashlib.sha256()
@@ -45,13 +48,13 @@ async def fluree_demo(privkey, addr):
     flureeclient = aioflureedb.FlureeClient(privkey, addr, port=8090, dryrun=False)
     print("ENDPOINTS:", dir(flureeclient))
     print("Client created")
-    async for netname, network in flureeclient:
-        print("### NET:",netname)
-        for dbname, db in network:
-            print("   -", dbname)
-    network = await flureeclient["dla"]
-    print("Network OK")
-    db = network["dla"]
+    async for network in flureeclient:
+        print("### NET:",network)
+        for db in network:
+            print("   -", db)
+    db = await flureeclient["dla/dla"]
+    # print("Network OK")
+    # db = network["dla"]
     print("DB OK")
     database = db(privkey, addr)
     print("Database client created")
@@ -60,11 +63,14 @@ async def fluree_demo(privkey, addr):
     print("Creating user:", randomuser)
     transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])
     print("OK: Transaction completed,", transaction)
-    result = await database.query.query(
-        select=["*"],
-        ffrom="_user"
-    )
-    print("Query succeeded, user count =", len(result))
+    try:
+        result = await database.flureeql.query(
+            select=["*"],
+            ffrom="_user"
+        )
+        print("Query succeeded, user count =", len(result))
+    except Exception as exp:
+        print("OOPS: ", exp)
     await flureeclient.close_session()
     await database.close_session()
 

@@ -11,80 +11,70 @@ from aioflureedb.signing import DbSigner
 
 class FlureeException(Exception):
     """Base exception class for aioflureedb"""
-    def __init__(self, *args, **kwargs):
+    def __init__(self, message):
         """Constructor
 
         Parameters
         ----------
-        args : list
-               List of positional arguments for passing to base class.
-        kwargs : dict
-                 Dictionary with named arguments for passing to base class.
+        message : str
+               Error message
         """
-        Exception.__init__(self, *args, **kwargs)
+        Exception.__init__(self, message)
 
 
 class FlureeHttpError(FlureeException):
     """Non 200 HTTP response"""
-    def __init__(self, status, *args, **kwargs):
+    def __init__(self, message, status):
         """Constructor
 
         Parameters
         ----------
+        message : str
+               Error message
         status : int
                  HTTP status code
-        args : list
-               List of positional arguments for passing to base class.
-        kwargs : dict
-                 Dictionary with named arguments for passing to base class.
         """
         self.status = status
-        FlureeException.__init__(self, *args, **kwargs)
+        FlureeException.__init__(self, message)
 
 
 class FlureeHalfCredentials(FlureeException):
     """Incomplete credentials"""
-    def __init__(self, *args, **kwargs):
+    def __init__(self, message):
         """Constructor
 
         Parameters
         ----------
-        args : list
-               List of positional arguments for passing to base class.
-        kwargs : dict
-                 Dictionary with named arguments for passing to base class.
+        message : str
+               Error message
         """
-        FlureeException.__init__(self, *args, **kwargs)
+        FlureeException.__init__(self, message)
 
 
 class FlureeKeyRequired(FlureeException):
     """Endpoint invoked that requires signing but no signing key available"""
-    def __init__(self, *args, **kwargs):
+    def __init__(self, message):
         """Constructor
 
         Parameters
         ----------
-        args : list
-               List of positional arguments for passing to base class.
-        kwargs : dict
-                 Dictionary with named arguments for passing to base class.
+        message : str
+               Error message
         """
-        FlureeException.__init__(self, *args, **kwargs)
+        FlureeException.__init__(self, message)
 
 
 class FlureeTransactionFailure(FlureeException):
     """Fluree transaction failed"""
-    def __init__(self, *args, **kwargs):
+    def __init__(self, message):
         """Constructor
 
         Parameters
         ----------
-        args : list
-               List of positional arguments for passing to base class.
-        kwargs : dict
-                 Dictionary with named arguments for passing to base class.
+        message : str
+               Error message
         """
-        FlureeException.__init__(self, *args, **kwargs)
+        FlureeException.__init__(self, message)
 
 
 class _FlureeQlQuery:
@@ -152,7 +142,7 @@ class _FlureeQlQuery:
 
 class _UnsignedGetter:
     """Get info with a GET instead of a POST"""
-    def __init__(self, session, url):
+    def __init__(self, session, url, ssl_verify_disabled=False):
         """Constructor
 
         Parameters
@@ -161,9 +151,12 @@ class _UnsignedGetter:
                   HTTP session for doing HTTP post/get with
         url : string
               URL of the API endpoint.
+        ssl_verify_disabled: bool
+              If https, don't verify ssl certs
         """
         self.session = session
         self.url = url
+        self.ssl_verify_disabled = ssl_verify_disabled
 
     async def __call__(self):
         """Invoke the functor
@@ -179,11 +172,18 @@ class _UnsignedGetter:
             If the server returns something different than a 200 OK status
         """
         if self.session:
-            async with self.session.get(self.url) as resp:
-                if resp.status != 200:
-                    raise FlureeHttpError(resp.status, await resp.text())
-                response = await resp.text()
-                return json.loads(response)
+            if self.ssl_verify_disabled:
+                async with self.session.get(self.url, ssl=False) as resp:
+                    if resp.status != 200:
+                        raise FlureeHttpError(await resp.text(), resp.status)
+                    response = await resp.text()
+                    return json.loads(response)
+            else:
+                async with self.session.get(self.url) as resp:
+                    if resp.status != 200:
+                        raise FlureeHttpError(await resp.text(), resp.status)
+                    response = await resp.text()
+                    return json.loads(response)
         else:
             print("############# GET ##############")
             print("url:", self.url)
@@ -193,7 +193,7 @@ class _UnsignedGetter:
 
 class _SignedPoster:
     """Basic signed HTTP posting"""
-    def __init__(self, session, signer, url, required, optional, unsigned=False):
+    def __init__(self, session, signer, url, required, optional, ssl_verify_disabled, unsigned=False):
         """Constructor
 
         Parameters
@@ -208,6 +208,8 @@ class _SignedPoster:
             Set of required fields for the specific API call.
         optional : set
             Set of optional fields for the specific API call.
+        ssl_verify_disabled: bool
+            If https, ignore ssl certificate issues.
         unsigned : bool
             If True, don't sign posts.
         """
@@ -219,6 +221,7 @@ class _SignedPoster:
         self.unsigned = unsigned
         if self.signer is None:
             self.unsigned = True
+        self.ssl_verify_disabled = ssl_verify_disabled
 
     async def _post_body_with_headers(self, body, headers):
         """Internal, post body with HTTP headers
@@ -241,14 +244,24 @@ class _SignedPoster:
             When Fluree server returns a status code other than 200
         """
         if self.session:
-            async with self.session.post(self.url, data=body, headers=headers) as resp:
-                if resp.status != 200:
-                    raise FlureeHttpError(resp.status, await resp.text())
-                data = await resp.text()
-                try:
-                    return json.loads(data)
-                except json.decoder.JSONDecodeError:
-                    return data
+            if self.ssl_verify_disabled:
+                async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
+                    if resp.status != 200:
+                        raise FlureeHttpError(await resp.text(), resp.status)
+                    data = await resp.text()
+                    try:
+                        return json.loads(data)
+                    except json.decoder.JSONDecodeError:
+                        return data
+            else:
+                async with self.session.post(self.url, data=body, headers=headers) as resp:
+                    if resp.status != 200:
+                        raise FlureeHttpError(await resp.text(), resp.status)
+                    data = await resp.text()
+                    try:
+                        return json.loads(data)
+                    except json.decoder.JSONDecodeError:
+                        return data
         else:
             print("url:", self.url)
             print("########### HEADERS ############")
@@ -315,6 +328,16 @@ class _Network:
         self.netname = netname
         self.options = options
 
+    def __str__(self):
+        """Cast to string
+
+        Returns
+        -------
+        str
+            Name of the network
+        """
+        return self.netname
+
     def __getitem__(self, key):
         """Square brackets operator
 
@@ -350,7 +373,7 @@ class _Network:
         """
         for key in self.options:
             database = self.netname + "/" + key
-            yield key, _DbFunctor(self.client, database)
+            yield _DbFunctor(self.client, database)
 
 
 class _DbFunctor:
@@ -367,6 +390,16 @@ class _DbFunctor:
         """
         self.client = client
         self.database = database
+
+    def __str__(self):
+        """Cast to string
+
+        Returns
+        -------
+        str
+            Database name
+        """
+        return self.database
 
     def __call__(self, privkey=None, auth_address=None, sig_validity=120, sig_fuel=1000):
         """Invoke functor
@@ -392,6 +425,7 @@ class _DbFunctor:
                                self.client.host,
                                self.client.port,
                                self.client.https,
+                               self.client.ssl_verify,
                                sig_validity,
                                sig_fuel,
                                self.client.session is None)
@@ -400,11 +434,12 @@ class _DbFunctor:
 class FlureeClient:
     """Basic asynchonous client for FlureeDB for non-database specific APIs"""
     def __init__(self,
-                 privkey=None,
+                 masterkey=None,
                  auth_address=None,
                  host="localhost",
                  port=8080,
                  https=False,
+                 ssl_verify=True,
                  sig_validity=120,
                  sig_fuel=1000,
                  dryrun=False):
@@ -412,7 +447,7 @@ class FlureeClient:
 
         Parameters
         ----------
-        privkey : string
+        masterkey : string
                   Hex or base58 encoded signing key
         auth_address : string
                        key-id of the signing key
@@ -422,6 +457,8 @@ class FlureeClient:
                    port of the FlureeDB server. Defaults to 8080
         https : bool
                    Boolean indicating flureeDB is running behind a HTTPS proxy
+        ssl_verify : bool
+                   Boolean, if False, indicating to not verify ssl certs.
         sig_validity : int
                    Validity in seconda of the signature.
         sig_fuel : int
@@ -432,16 +469,20 @@ class FlureeClient:
         Raises
         ------
         FlureeHalfCredentials
-            If privkey is specified but auth_address isn't, or the other way around.
+            If masterkey is specified but auth_address isn't, or the other way around.
         """
         self.host = host
         self.port = port
         self.https = https
+        self.ssl_verify = ssl_verify
+        self.ssl_verify_disabled = False
+        if https and not ssl_verify:
+            self.ssl_verify_disabled = True
         self.signer = None
-        if privkey and auth_address:
-            self.signer = DbSigner(privkey, auth_address, None, sig_validity, sig_fuel)
-        if privkey and not auth_address or auth_address and not privkey:
-            raise FlureeHalfCredentials("privkey and auth_address should either both be specified, or neither")
+        if masterkey and auth_address:
+            self.signer = DbSigner(masterkey, auth_address, None, sig_validity, sig_fuel)
+        if masterkey and not auth_address or auth_address and not masterkey:
+            raise FlureeHalfCredentials("masterkey and auth_address should either both be specified, or neither")
         self.session = None
         if not dryrun:
             self.session = aiohttp.ClientSession()
@@ -525,10 +566,10 @@ class FlureeClient:
         if api_endpoint in self.optional:
             optional = self.optional[api_endpoint]
         if signed:
-            return _SignedPoster(self.session, self.signer, url, required, optional)
+            return _SignedPoster(self.session, self.signer, url, required, optional, self.ssl_verify_disabled)
         if use_get:
-            return _UnsignedGetter(self.session, url)
-        return _SignedPoster(self.session, self.signer, url, required, optional, unsigned=True)
+            return _UnsignedGetter(self.session, url, self.ssl_verify_disabled)
+        return _SignedPoster(self.session, self.signer, url, required, optional, self.ssl_verify_disabled, unsigned=True)
 
     async def __getitem__(self, key):
         """Square bracket operator
@@ -548,6 +589,11 @@ class FlureeClient:
         _Network
             Helper object for designating databases within a network.
         """
+        subkey = None
+        if "/" in key:
+            parts = key.split("/")
+            key = parts[0]
+            subkey = parts[1]
         databases = await self.dbs()
         options = set()
         for pair in databases:
@@ -555,7 +601,10 @@ class FlureeClient:
                 options.add(pair[1])
         if not bool(options):
             raise KeyError("No such network: '" + key + "'")
-        return _Network(self, key, options)
+        network = _Network(self, key, options)
+        if subkey is None:
+            return network
+        return network[subkey]
 
     async def __aiter__(self):
         """Iterate over all networks
@@ -576,7 +625,7 @@ class FlureeClient:
                 optionsmap[network] = set()
             optionsmap[network].add(database)
         for key in optionsmap:
-            yield key, _Network(self, key, optionsmap[key])
+            yield _Network(self, key, optionsmap[key])
 
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
@@ -594,6 +643,7 @@ class _FlureeDbClient:
                  host="localhost",
                  port=8080,
                  https=False,
+                 ssl_verify=True,
                  sig_validity=120,
                  sig_fuel=1000,
                  dryrun=False):
@@ -613,6 +663,8 @@ class _FlureeDbClient:
                    port of the FlureeDB server. Defaults to 8080
         https : bool
                    Boolean indicating flureeDB is running behind a HTTPS proxy
+        ssl_verify : bool
+                   Boolean, when false, indicating no validation of ssl certs.
         sig_validity : int
                    Validity in seconda of the signature.
         sig_fuel : int
@@ -624,6 +676,9 @@ class _FlureeDbClient:
         self.host = host
         self.port = port
         self.https = https
+        self.ssl_verify_disabled = False
+        if https and not ssl_verify:
+            self.ssl_verify_disabled = True
         self.signer = None
         if privkey and auth_address:
             self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
@@ -634,6 +689,7 @@ class _FlureeDbClient:
                                     "list_snapshots",
                                     "export",
                                     "query",
+                                    "flureeql",
                                     "multi_query",
                                     "block",
                                     "history",
@@ -651,7 +707,7 @@ class _FlureeDbClient:
                                     "storage",
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
-        self.implemented = set(["query", "command"])
+        self.implemented = set(["query", "flureeql", "command"])
 
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
@@ -673,6 +729,7 @@ class _FlureeDbClient:
                                              "__getattr__"]
 
     def __getattr__(self, api_endpoint):
+        # pylint: disable=too-many-statements
         """Select API endpoint
 
         Parameters
@@ -695,7 +752,7 @@ class _FlureeDbClient:
             When 'command' endpoint is invoked in open-API mode.
         """
         class _StringEndpoint:
-            def __init__(self, api_endpoint, client):
+            def __init__(self, api_endpoint, client, ssl_verify_disabled=False):
                 """Constructor
 
                 Parameters
@@ -704,6 +761,8 @@ class _FlureeDbClient:
                                Name of the API endpoint
                 client: object
                         The wrapping _FlureeDbClient
+                ssl_verify_disabled: bool
+                    If https, dont validate ssl certs.
                 """
                 secure = ""
                 if client.https:
@@ -720,6 +779,7 @@ class _FlureeDbClient:
                            api_endpoint
                 self.signer = client.signer
                 self.session = client.session
+                self.ssl_verify_disabled = ssl_verify_disabled
 
             async def _post_body_with_headers(self, body, headers):
                 """Internal, post body with HTTP headers
@@ -742,10 +802,16 @@ class _FlureeDbClient:
                     When HTTP status from fluree server is anything other than 200
                 """
                 if self.session:
-                    async with self.session.post(self.url, data=body, headers=headers) as resp:
-                        if resp.status != 200:
-                            raise FlureeHttpError(await resp.text())
-                        return await resp.text()
+                    if self.ssl_verify_disabled:
+                        async with self.session.post(self.url, data=body, headers=headers) as resp:
+                            if resp.status != 200:
+                                raise FlureeHttpError(await resp.text(), resp.status)
+                            return await resp.text()
+                    else:
+                        async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
+                            if resp.status != 200:
+                                raise FlureeHttpError(await resp.text(), resp.status)
+                            return await resp.text()
                 else:
                     print("url:", self.url)
                     print("########### HEADERS ############")
@@ -796,7 +862,7 @@ class _FlureeDbClient:
 
         class FlureeQlEndpoint:
             """Endpoint for JSON based (FlureeQl) queries"""
-            def __init__(self, api_endpoint, client):
+            def __init__(self, api_endpoint, client, ssl_verify_disabled):
                 """Constructor
 
                 Parameters
@@ -805,8 +871,12 @@ class _FlureeDbClient:
                                Name of the API endpoint
                 client: object
                         The wrapping _FlureeDbClient
+                ssl_verify_disabled: bool
+                    When using https, don't validata ssl certs.
                 """
-                self.stringendpoint = _StringEndpoint(api_endpoint, client)
+                if api_endpoint == "flureeql":
+                    api_endpoint = "query"
+                self.stringendpoint = _StringEndpoint(api_endpoint, client, ssl_verify_disabled)
 
             def __dir__(self):
                 """Dir function for class
@@ -836,7 +906,7 @@ class _FlureeDbClient:
                 AttributeError
                     When anything other than 'query' is provided as method.
                 """
-                if api_endpoint == "query":
+                if api_endpoint in ["query", "flureeql"]:
                     return _FlureeQlQuery(self)
                 raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
 
@@ -910,4 +980,4 @@ class _FlureeDbClient:
             if self.signer is None:
                 raise FlureeKeyRequired("Command endpoint not supported in open-API mode. privkey required!")
             return TransactionEndpoint(api_endpoint, self)
-        return FlureeQlEndpoint(api_endpoint, self)
+        return FlureeQlEndpoint(api_endpoint, self, self.ssl_verify_disabled)
