@@ -33,24 +33,33 @@ def get_key_id_from_privkey(privkey):
         # Try generating the key-id from the private key using starkbank-ecdsa
         private_key = privateKey.PrivateKey.fromString(bytes.fromhex(privkey))
         public_key = private_key.publicKey()
+        # 512 bit version of the public key prefixed with \x04
         pk = b'\x04' + public_key.toString().encode("latin1")
+        # Take the ripemd160 hash of the sha256 hash of the public key
         h3 = hashlib.sha256()
         h4 = h2 = hashlib.new('ripemd160')
         h3.update(pk)
         h4.update(h3.digest())
+        # Prefix the 160 bit ripmd160 hash with the fluree network id x0f02
         core2 =  b'\x0f\x02' + h4.digest()
+        #Take the sha256 of the sha256 of the prefixed ripemd160 hash
         h5 = hashlib.sha256()
         h6 = hashlib.sha256()
         h5.update(core2)
         h6.update(h5.digest())
+        # Use the first 4 characters as checksum, add to the prefixed ripmd160 hash and base58 encode the result.
         keyid2 = base58.b58encode(core2 + h6.digest()[:4]).decode()
 
         # Doing the same with bitcoinlib
+        # Remove the bitcoin network id and the checksum from the base58 decoded bitcoin adress,
+        # then prefix with fluree network id. 
         core = b'\x0f\x02' + base58.b58decode(bitcoinlib.keys.Key(privkey).address())[1:-4]
+        #Take the sha256 of the sha256 of the decoded and patched bitcoin adress.
         h1 = hashlib.sha256()
         h2 = hashlib.sha256()
         h1.update(core)
         h2.update(h1.digest())
+        # Use the first 4 characters as checksum, base58 encode the result.
         keyid = base58.b58encode(core + h2.digest()[:4]).decode()
 
         # Check is they are the same
