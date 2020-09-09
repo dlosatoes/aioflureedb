@@ -78,9 +78,12 @@ def get_key_id_from_privkey(privkey):
 async def fluree_demo(privkey, addr):
     print(privkey)
     print(addr)
-    port = 8090
     flureeclient = aioflureedb.FlureeClient(privkey, addr, port=8090, dryrun=False)
+    print("AWAIT Ready")
+    await flureeclient.health.ready()
+    print("READY")
     print("ENDPOINTS:", dir(flureeclient))
+    print("HEALTH:", await flureeclient.health())
     print("Client created")
     async for network in flureeclient:
         print("### NET:",network)

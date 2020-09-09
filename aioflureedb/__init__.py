@@ -142,7 +142,7 @@ class _FlureeQlQuery:
 
 class _UnsignedGetter:
     """Get info with a GET instead of a POST"""
-    def __init__(self, session, url, ssl_verify_disabled=False):
+    def __init__(self, session, url, ssl_verify_disabled=False, ready=None):
         """Constructor
 
         Parameters
@@ -153,10 +153,13 @@ class _UnsignedGetter:
               URL of the API endpoint.
         ssl_verify_disabled: bool
               If https, don't verify ssl certs
+        ready : string
+              If defined, provide a ready method to wait for ready condition to become true.
         """
         self.session = session
         self.url = url
         self.ssl_verify_disabled = ssl_verify_disabled
+        self.ready_field = ready
 
     async def __call__(self):
         """Invoke the functor
@@ -189,6 +192,22 @@ class _UnsignedGetter:
             print("url:", self.url)
             print("################################")
             return {"dryrun": True}
+
+    async def ready(self):
+        """Redo get untill ready condition gets met"""
+        if self.ready_field is None:
+            print("WARNING: no ready for this endpoint")
+            return
+        while True:
+            try:
+                obj = await self()
+                if obj[self.ready_field]:
+                    return
+            except FlureeHttpError:
+                pass
+            except aiohttp.client_exceptions.ClientConnectorError:
+                pass
+            await asyncio.sleep(0.5)
 
 
 class _SignedPoster:
@@ -568,6 +587,8 @@ class FlureeClient:
         if signed:
             return _SignedPoster(self.session, self.signer, url, required, optional, self.ssl_verify_disabled)
         if use_get:
+            if api_endpoint == "health":
+                return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, ready="ready")
             return _UnsignedGetter(self.session, url, self.ssl_verify_disabled)
         return _SignedPoster(self.session, self.signer, url, required, optional, self.ssl_verify_disabled, unsigned=True)
 
@@ -632,7 +653,6 @@ class FlureeClient:
         if self.session:
             await self.session.close()
         return
-
 
 class _FlureeDbClient:
     """Basic asynchonous client for FlureeDB representing a particular database on FlureeDB"""

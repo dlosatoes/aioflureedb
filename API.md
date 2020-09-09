@@ -56,6 +56,29 @@ async def fluree_main(privkey, addr):
     ...
 ```
 
+### Making sure FlureeDB is ready
+The *health* endpoint has a convenience method *ready* that will run forever untill the database is ready.
+
+```python
+    ...
+    flureeclient = aioflureedb.FlureeClient(privkey, addr, port=8090, dryrun=False)
+    await flureeclient.health.ready()
+    ...
+```
+It is also possible to poll the health endpoint
+```python
+    ..
+    ready = False
+    try:
+        fluree_health = await flureeclient.health()
+        ready = fluree_health["ready"]
+    except aioflureedb.FlureeHttpError:
+        pass
+    except aiohttp.client_exceptions.ClientConnectorError:
+        pass
+```
+
+
 ### Networks and databases
 
 Once we have a FlureeClient, we can use it to itterate over the avilable networks and databases, and do what we need to do with each database.
