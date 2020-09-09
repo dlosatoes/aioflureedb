@@ -255,7 +255,7 @@ class _SignedPoster:
         Returns
         -------
         string
-            Content as returned by HTTP server
+            Content as returned by HTTP server, dict if decodable json
 
         Raises
         ------
@@ -654,6 +654,7 @@ class FlureeClient:
             await self.session.close()
         return
 
+
 class _FlureeDbClient:
     """Basic asynchonous client for FlureeDB representing a particular database on FlureeDB"""
     def __init__(self,
@@ -840,7 +841,7 @@ class _FlureeDbClient:
                     print("############ BODY ##############")
                     print(body)
                     print("################################")
-                    return {"dryrun": True}
+                    return '{"dryrun": True}'
 
             async def header_signed(self, query_body):
                 """Do a HTTP query using headers for signing
