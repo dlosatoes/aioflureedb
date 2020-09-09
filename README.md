@@ -4,7 +4,13 @@ This library isn't production stable yet. Please only use for experiments and de
 
 ### Install
 
+To install the 0.1 release, run
 
+```bash
+python3 -m pip install aioflureedb
+```
+
+To install the dev snapshot instead (not recomended) run.
 ```bash
 git clone https://github.com/pibara/aioflureedb.git
 cd aioflureedb
@@ -12,7 +18,7 @@ python3 -m pip install .
 ```
 
 
-### Testing the low level signing lib.
+### Testing the low level signing lib (dev snapshot only)
 If you wish to run the test scripts, install the FlureeDB Javascript library:
 This shouldn't be needed for normal operation.
 
