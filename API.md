@@ -277,5 +277,8 @@ If you feel any of these requires priority, please [submit an issue](https://git
 * ledger\_stats
 * storage
 * pw
+  * generate
+  * renew
+  * login
 
 If you feel any of these requires priority, please [submit an issue](https://github.com/pibara/aioflureedb/issues) or fork and submit a fork request.
