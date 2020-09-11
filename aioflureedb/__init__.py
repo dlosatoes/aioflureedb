@@ -3,6 +3,7 @@
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-instance-attributes
 """Basic asynchonous client library for FlureeDB"""
+import sys
 import asyncio
 import json
 import aiohttp
@@ -97,6 +98,15 @@ class _FlureeQlQuery:
                                   "prefixes",
                                   "vars",
                                   "opts"])
+        self.depricatedkeys = set(["filter",
+                                   "union", 
+                                   "optional",
+                                   "limit",
+                                   "offset",
+                                   "orderBy",
+                                   "groupBy",
+                                   "prettyPrint"
+                                ])
 
     async def __call__(self, **kwargs):
         """FlureeQl query construction through keyword arguments
@@ -123,7 +133,9 @@ class _FlureeQlQuery:
             if key == "ffilter":
                 key = "filter"
             if key not in self.permittedkeys:
-                raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
+                if key not in self.depricatedkeys:
+                    raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
+                print("WARNING: Use of depricated FlureeQL syntax,", key, "should not be used as top level key in queries", file=sys.stderr)
             obj[key] = value
         return await self.endpoint.actual_query(obj)
 
@@ -991,8 +1003,10 @@ class _FlureeDbClient:
                 while True:
                     status = await self.client.query.query(select=["*"], ffrom=["_tx/id", tid])
                     if status:
-                        if "error" in status[0] or "_tx/error" in status[0]:
+                        if "error" in status[0]:
                             raise FlureeTransactionFailure("Transaction failed:" + status[0]["error"])
+                        if "_tx/error" in status[0]:
+                            raise FlureeTransactionFailure("Transaction failed:" + status[0]["_tx/error"])
                         return status[0]
                     await asyncio.sleep(0.1)
         if api_endpoint not in self.known_endpoints:
