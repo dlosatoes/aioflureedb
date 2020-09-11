@@ -120,6 +120,8 @@ class _FlureeQlQuery:
         for key, value in kwargs.items():
             if key == "ffrom":
                 key = "from"
+            if key == "ffilter":
+                key = "filter"
             if key not in self.permittedkeys:
                 raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
             obj[key] = value
@@ -989,7 +991,7 @@ class _FlureeDbClient:
                 while True:
                     status = await self.client.query.query(select=["*"], ffrom=["_tx/id", tid])
                     if status:
-                        if "error" in status[0]:
+                        if "error" in status[0] or "_tx/error" in status[0]:
                             raise FlureeTransactionFailure("Transaction failed:" + status[0]["error"])
                         return status[0]
                     await asyncio.sleep(0.1)
