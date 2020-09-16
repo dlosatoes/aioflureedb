@@ -99,14 +99,13 @@ class _FlureeQlQuery:
                                   "vars",
                                   "opts"])
         self.depricatedkeys = set(["filter",
-                                   "union", 
+                                   "union",
                                    "optional",
                                    "limit",
                                    "offset",
                                    "orderBy",
                                    "groupBy",
-                                   "prettyPrint"
-                                ])
+                                   "prettyPrint"])
 
     async def __call__(self, **kwargs):
         """FlureeQl query construction through keyword arguments
@@ -135,7 +134,10 @@ class _FlureeQlQuery:
             if key not in self.permittedkeys:
                 if key not in self.depricatedkeys:
                     raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
-                print("WARNING: Use of depricated FlureeQL syntax,", key, "should not be used as top level key in queries", file=sys.stderr)
+                print("WARNING: Use of depricated FlureeQL syntax,",
+                      key,
+                      "should not be used as top level key in queries",
+                      file=sys.stderr)
             obj[key] = value
         return await self.endpoint.actual_query(obj)
 
@@ -231,6 +233,8 @@ class _SignedPoster:
 
         Parameters
         ----------
+        client : FlureeClient
+            FlureeClient used for checking for new databases
         session : aiohttp.ClientSession
             HTTP session for doing HTTP post/get with
         signer : aioflureedb.signing.DbSigner
@@ -291,13 +295,13 @@ class _SignedPoster:
                 async with self.session.post(self.url, data=body, headers=headers) as resp:
                     if resp.status != 200:
                         rbody = await resp.text()
-                        print("url:", self.url)
-                        print("########### HEADERS ############")
-                        for key in headers:
-                            print(key, ":", headers[key])
-                        print("############ BODY ##############")
-                        print(body)
-                        print("################################")
+                        # print("url:", self.url)
+                        # print("########### HEADERS ############")
+                        # for key in headers:
+                        #     print(key, ":", headers[key])
+                        # print("############ BODY ##############")
+                        # print(body)
+                        # print("################################")
                         raise FlureeHttpError(rbody, resp.status)
                     data = await resp.text()
                     try:
@@ -354,7 +358,7 @@ class _SignedPoster:
         if isinstance(rval, str) and len(rval) == 64 and self.url.split("/")[-1] == "new-db" and "db_id" in kwargs:
             dbid = kwargs["db_id"]
             while True:
-                databases= await self.client.dbs()
+                databases = await self.client.dbs()
                 for database in databases:
                     dbid2 = database[0] + "/" + database[1]
                     if dbid == dbid2:
