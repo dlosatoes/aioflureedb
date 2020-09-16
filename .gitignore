@@ -1,2 +1,7 @@
 **/__pycache__
 node_modules/
+aioflureedb.egg-info/
+build/
+compare
+dist/
+
