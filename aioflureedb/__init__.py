@@ -352,7 +352,7 @@ class _SignedPoster:
         body = json.dumps(kwdict, indent=4, sort_keys=True)
         headers = {"Content-Type": "application/json"}
         if not self.unsigned:
-            body, headers, _ = self.signer.sign_query(body)
+            body, headers, _ = self.signer.sign_query(kwdict)
         rval = await self._post_body_with_headers(body, headers)
         # If this is a new-db, we need to await till it comes into existance.
         if isinstance(rval, str) and len(rval) == 64 and self.url.split("/")[-1] == "new-db" and "db_id" in kwargs:
