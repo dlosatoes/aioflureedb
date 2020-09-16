@@ -226,7 +226,7 @@ class _UnsignedGetter:
 
 class _SignedPoster:
     """Basic signed HTTP posting"""
-    def __init__(self, session, signer, url, required, optional, ssl_verify_disabled, unsigned=False):
+    def __init__(self, client, session, signer, url, required, optional, ssl_verify_disabled, unsigned=False):
         """Constructor
 
         Parameters
@@ -246,6 +246,7 @@ class _SignedPoster:
         unsigned : bool
             If True, don't sign posts.
         """
+        self.client = client
         self.session = session
         self.signer = signer
         self.url = url
@@ -289,7 +290,15 @@ class _SignedPoster:
             else:
                 async with self.session.post(self.url, data=body, headers=headers) as resp:
                     if resp.status != 200:
-                        raise FlureeHttpError(await resp.text(), resp.status)
+                        rbody = await resp.text()
+                        print("url:", self.url)
+                        print("########### HEADERS ############")
+                        for key in headers:
+                            print(key, ":", headers[key])
+                        print("############ BODY ##############")
+                        print(body)
+                        print("################################")
+                        raise FlureeHttpError(rbody, resp.status)
                     data = await resp.text()
                     try:
                         return json.loads(data)
@@ -330,7 +339,7 @@ class _SignedPoster:
                 raise TypeError("SignedPoster got unexpected keyword argument '" + key + "'")
             kwset.add(key)
             if key == "db_id":
-                kwdict[key] = "db/id"
+                kwdict["db/id"] = value
             else:
                 kwdict[key] = value
         for reqkey in self.required:
@@ -340,7 +349,18 @@ class _SignedPoster:
         headers = {"Content-Type": "application/json"}
         if not self.unsigned:
             body, headers, _ = self.signer.sign_query(body)
-        return await self._post_body_with_headers(body, headers)
+        rval = await self._post_body_with_headers(body, headers)
+        # If this is a new-db, we need to await till it comes into existance.
+        if isinstance(rval, str) and len(rval) == 64 and self.url.split("/")[-1] == "new-db" and "db_id" in kwargs:
+            dbid = kwargs["db_id"]
+            while True:
+                databases= await self.client.dbs()
+                for database in databases:
+                    dbid2 = database[0] + "/" + database[1]
+                    if dbid == dbid2:
+                        return True
+                await asyncio.sleep(0.1)
+        return rval
 
 
 class _Network:
@@ -527,14 +547,21 @@ class FlureeClient:
                                     "health",
                                     "new_keys"])
         self.unsigned_endpoints = set(["dbs", "health", "new_keys"])
-        self.use_get = set(["health"])
+        self.use_get = set(["health", "new_keys"])
         self.required = dict()
         self.required["new_db"] = set(["db_id"])
         self.required["delete_db"] = set(["db_id"])
         self.required["add_server"] = set(["server"])
         self.required["delete_server"] = set(["server"])
         self.optional = {"new_db": set(["snapshot"])}
-        self.implemented = set(["dbs", "new_keys", "health"])
+        self.implemented = set(["dbs",
+                                "new_keys",
+                                "health",
+                                "new_db",
+                                "delete_db",
+                                "new_keys",
+                                "add_server",
+                                "remove_server"])
 
     def __dir__(self):
         """Dir function for class
@@ -585,7 +612,7 @@ class FlureeClient:
               ":" + \
               str(self.port) + \
               "/fdb/" + \
-              api_endpoint
+              "-".join(api_endpoint.split("_"))
         signed = True
         if api_endpoint in self.unsigned_endpoints:
             signed = False
@@ -599,12 +626,12 @@ class FlureeClient:
         if api_endpoint in self.optional:
             optional = self.optional[api_endpoint]
         if signed:
-            return _SignedPoster(self.session, self.signer, url, required, optional, self.ssl_verify_disabled)
+            return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled)
         if use_get:
             if api_endpoint == "health":
                 return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, ready="ready")
             return _UnsignedGetter(self.session, url, self.ssl_verify_disabled)
-        return _SignedPoster(self.session, self.signer, url, required, optional, self.ssl_verify_disabled, unsigned=True)
+        return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled, unsigned=True)
 
     async def __getitem__(self, key):
         """Square bracket operator
@@ -811,7 +838,7 @@ class _FlureeDbClient:
                            "/fdb/" + \
                            client.database + \
                            "/" + \
-                           api_endpoint
+                           "-".join(api_endpoint.split("_"))
                 self.signer = client.signer
                 self.session = client.session
                 self.ssl_verify_disabled = ssl_verify_disabled

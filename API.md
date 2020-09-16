@@ -237,6 +237,36 @@ async def fluree_main(privkey, addr):
           ...
    ...
 ```
+
+### new-keys
+If the client needs a new signing key with public key and key id, the **new\_keys** method lets you fetch them from flureedb
+
+```python
+  ...
+  newkeys = await flureeclient.new_keys()
+  signing_key = newkeys["private"]
+  public_key = newkeys["public"]
+  key_id = newkeys["account-id"]
+  ..
+```
+
+### new-db
+
+NOTE: This operation currently only works unsigned !!
+
+This operation won't resolve untill the database has been fully created.
+
+```python
+
+   try:
+       await flureeclient.new_db(db_id="dev/test6") 
+   except aioflureedb.FlureeHttpError as exp:
+       print("Oops, problem creating database:", exp) 
+
+```
+
+
+
 ### More comming up.
 
 The above is the API for the 0.1 release of aioflureedb. Many API endpoints arent supported yet and none of them has currently been prioritized. Please [submit an issue](https://github.com/pibara/aioflureedb/issues) to help with prioritazion. Pull requests are also very much welcomed. Please make sure your patches don't brake either *pylint* with the [provided config](https://github.com/pibara/aioflureedb/blob/master/.pylintrc) or *pycodestyle* using the *--max-line-length=128* option.
@@ -249,11 +279,9 @@ If you feel this requires priority, please [submit an issue](https://github.com/
 
 #### Todo Fluree client endpoint support
 
-* new\_db
-* delete\_db
-* add\_server
-* remove\_server
-* new\_keys
+* delete\_db       : currently broken
+* add\_server      : untested
+* remove\_server   : untested
 
 If you feel any of these requires priority, please [submit an issue](https://github.com/pibara/aioflureedb/issues) or fork and submit a pull request.
 

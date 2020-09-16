@@ -1,6 +1,6 @@
 ## aioflureedb
 
-This library isn't production stable yet. Please only use for experiments and development hints.
+This library isn't fully production stable yet; Alpha.
 
 ### Install
 

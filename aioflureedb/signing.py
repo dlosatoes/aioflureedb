@@ -143,7 +143,9 @@ class DbSigner:
             The URI used for signing.
         """
         body = unicodedata.normalize("NFKC", json.dumps(param, separators=(',', ':')))
-        uri = "/fdb/" + self.database + "/" + querytype
+        uri = "/fdb/" + "-".join(querytype.split("_"))
+        if self.database:
+            uri = "/fdb/" + self.database + "/" + "-".join(querytype.split("_"))
         stamp = mktime(datetime.now().timetuple())
         mydate = formatdate(timeval=stamp, localtime=False, usegmt=True)
         hsh = hashlib.sha256()
