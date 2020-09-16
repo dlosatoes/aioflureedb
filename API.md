@@ -252,8 +252,6 @@ If the client needs a new signing key with public key and key id, the **new\_key
 
 ### new-db
 
-NOTE: This operation currently only works unsigned !!
-
 This operation won't resolve untill the database has been fully created.
 
 ```python
