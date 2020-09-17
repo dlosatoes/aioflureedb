@@ -77,6 +77,39 @@ class FlureeTransactionFailure(FlureeException):
         """
         FlureeException.__init__(self, message)
 
+def _dryrun(method, url, headers, body):
+    """Helper function for debugging the library
+
+    Parameters
+    ----------
+    method :  str
+              HTTP method (POST or GET
+    url :     str
+              The url that would have been used
+    headers : dict
+              Dictionary with HTTP headers that would have been used
+    body :    str
+              The HTTP posting body
+    Returns
+    -------
+    dict
+        dummy dict, serves no purpose other than keeping to APIs
+    """
+    print("################################")
+    print("#            dryrun            #")
+    print("################################")
+    print("             ", method)
+    print("################################")
+    print("    ", url)
+    if not headers is None:
+        print("########### HEADERS ############")
+        for key in headers:
+            print(key, ":", headers[key])
+    if not body is None:
+        print("############ BODY ##############")
+        print(body)
+        print("################################")
+    return {"dryrun": True}
 
 class _FlureeQlQuery:
     """Helper class for FlureeQL query syntactic sugar"""
@@ -204,15 +237,12 @@ class _UnsignedGetter:
                     response = await resp.text()
                     return json.loads(response)
         else:
-            print("############# GET ##############")
-            print("url:", self.url)
-            print("################################")
-            return {"dryrun": True}
+            return _dryrun("GET", self.url, None, None)
 
     async def ready(self):
         """Redo get untill ready condition gets met"""
         if self.ready_field is None:
-            print("WARNING: no ready for this endpoint")
+            print("WARNING: no ready for this endpoint", file=sys.stderr)
             return
         while True:
             try:
@@ -295,13 +325,6 @@ class _SignedPoster:
                 async with self.session.post(self.url, data=body, headers=headers) as resp:
                     if resp.status != 200:
                         rbody = await resp.text()
-                        # print("url:", self.url)
-                        # print("########### HEADERS ############")
-                        # for key in headers:
-                        #     print(key, ":", headers[key])
-                        # print("############ BODY ##############")
-                        # print(body)
-                        # print("################################")
                         raise FlureeHttpError(rbody, resp.status)
                     data = await resp.text()
                     try:
@@ -309,14 +332,7 @@ class _SignedPoster:
                     except json.decoder.JSONDecodeError:
                         return data
         else:
-            print("url:", self.url)
-            print("########### HEADERS ############")
-            for key in headers:
-                print(key, ":", headers[key])
-            print("############ BODY ##############")
-            print(body)
-            print("################################")
-            return {"dryrun": True}
+            return json.loads(_dryrun("POST", self.url, headers, body))
 
     async def __call__(self, **kwargs):
         """Invoke post API
@@ -567,6 +583,19 @@ class FlureeClient:
                                 "add_server",
                                 "remove_server"])
 
+    async def __aenter__(self):
+        """Method for allowing 'with' constructs
+
+        Returns
+        -------
+        FlureeClient
+            this fluree client
+        """
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        await self.close_session()
+
     def __dir__(self):
         """Dir function for class
 
@@ -580,7 +609,9 @@ class FlureeClient:
                                              "__dir__",
                                              "__getattr__",
                                              "__getitem__",
-                                             "__aiter__"]
+                                             "__aiter__",
+                                             " __aenter__",
+                                             " __aexit__"]
 
     def __getattr__(self, api_endpoint):
         """Select API endpoint
@@ -775,6 +806,19 @@ class _FlureeDbClient:
         self.pw_endpoints = set(["generate", "renew", "login"])
         self.implemented = set(["query", "flureeql", "command"])
 
+    async def __aexit__(self, exc_type, exc, traceback):
+        await self.close_session()
+
+    async def __aenter__(self):
+        """Method for allowing 'with' constructs
+
+        Returns
+        -------
+        _FlureeDbClient
+            this fluree DB client
+        """
+        return self
+
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
         if self.session:
@@ -792,7 +836,9 @@ class _FlureeDbClient:
         return list(self.known_endpoints) + ["close_session",
                                              "__init__",
                                              "__dir__",
-                                             "__getattr__"]
+                                             "__getattr__",
+                                             " __aenter__",
+                                             " __aexit__"]
 
     def __getattr__(self, api_endpoint):
         # pylint: disable=too-many-statements
@@ -879,14 +925,7 @@ class _FlureeDbClient:
                                 raise FlureeHttpError(await resp.text(), resp.status)
                             return await resp.text()
                 else:
-                    print("url:", self.url)
-                    print("########### HEADERS ############")
-                    for key in headers:
-                        print(key, ":", headers[key])
-                    print("############ BODY ##############")
-                    print(body)
-                    print("################################")
-                    return '{"dryrun": True}'
+                    return json.loads(_dryrun("POST", self.url, headers, body))
 
             async def header_signed(self, query_body):
                 """Do a HTTP query using headers for signing

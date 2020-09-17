@@ -80,47 +80,49 @@ def get_key_id_from_privkey(privkey):
 async def fluree_demo(privkey, addr):
     print(privkey)
     print(addr)
-    flureeclient = aioflureedb.FlureeClient(privkey, addr, port=8090, dryrun=False)
-    #flureeclient = aioflureedb.FlureeClient(port=8090, dryrun=False)
-    print("AWAIT Ready")
-    await flureeclient.health.ready()
-    print("READY")
-    print(await flureeclient.dbs())
-    print("ENDPOINTS:", dir(flureeclient))
-    print("HEALTH:", await flureeclient.health())
-    print("########################################")
-    print("NEWKEYS", await flureeclient.new_keys())
-    print("########################################")
-    new_db = await flureeclient.new_db(db_id="dev/test12")
-    print("NEWDB", new_db)
-    # del_db = await flureeclient.delete_db(db_id="dev/test8")
-    # print("DELDB:", del_db)
-    print("########################################")
-    async for network in flureeclient:
-        print("### NET:",network)
-        for db in network:
-            print("   -", db)
-    db = await flureeclient["dla/dla"]
-    # print("Network OK")
-    # db = network["dla"]
-    print("DB OK")
-    database = db(privkey, addr)
-    print("Database client created")
-    print("ENDPOINTS:", dir(database))
-    randomuser = "user-" + str(int(time.time()) % 10000)
-    print("Creating user:", randomuser)
-    transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])
-    print("OK: Transaction completed,", transaction)
-    try:
-        result = await database.flureeql.query(
-            select=["*"],
-            ffrom="_user"
-        )
-        print("Query succeeded, user count =", len(result))
-    except Exception as exp:
-        print("OOPS: ", exp)
-    await flureeclient.close_session()
-    await database.close_session()
+    async with aioflureedb.FlureeClient(privkey, addr, port=8090) as flureeclient:
+        print("AWAIT Ready")
+        await flureeclient.health.ready()
+        print("READY")
+        print(await flureeclient.dbs())
+        print("ENDPOINTS:", dir(flureeclient))
+        print("HEALTH:", await flureeclient.health())
+        print("########################################")
+        print("NEWKEYS", await flureeclient.new_keys())
+        print("########################################")
+        new_db = await flureeclient.new_db(db_id="dev/test23")
+        print("NEWDB", new_db)
+        # Not working yet, need to look into del_db
+        #   del_db = await flureeclient.delete_db(db_id="dev/test14")
+        #   print("DELDB:", del_db)
+        print("########################################")
+        async for network in flureeclient:
+            print("### NET:",network)
+            for db in network:
+                print("   -", db)
+        db = await flureeclient["dla/dla"]
+        # print("Network OK")
+        # db = network["dla"]
+        print("DB OK")
+    async with db(privkey, addr) as database:
+        print("Database client created")
+        print("ENDPOINTS:", dir(database))
+        randomuser = "user-" + str(int(time.time()) % 10000)
+        print("Creating user:", randomuser)
+        print("################################")
+        transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])
+        print("================================")
+        print("OK: Transaction completed,", transaction)
+        try:
+            result = await database.flureeql.query(
+                select=["*"],
+                ffrom="_user"
+            )
+            print("Query succeeded, user count =", len(result))
+        except Exception as exp:
+            print("OOPS: ", exp)
+    # await flureeclient.close_session()
+    # await database.close_session()
 
 
 
