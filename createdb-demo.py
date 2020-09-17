@@ -16,13 +16,8 @@ async def fluree_demo(privkey, addr):
         db = await flureeclient[semi_unique_db]
     print("database created")
     async with db(privkey, addr) as database:
-        try:
-            transaction = await database.command.transaction([{"_id":"_user","username": user}])
-        except FlureeHttpError as exp:
-            print("Seems database does not exist yet:", exp)
-            print("Waiting for 2 seconds to try again")
-            await asyncio.sleep(2)
-            transaction = await database.command.transaction([{"_id":"_user","username": user}])
+        await database.ready()
+        transaction = await database.command.transaction([{"_id":"_user","username": user}])
         print("User added")
         result = await database.flureeql.query(
             select=["*"],

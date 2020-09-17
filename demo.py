@@ -90,7 +90,7 @@ async def fluree_demo(privkey, addr):
         print("########################################")
         print("NEWKEYS", await flureeclient.new_keys())
         print("########################################")
-        new_db = await flureeclient.new_db(db_id="dev/test23")
+        new_db = await flureeclient.new_db(db_id="dev/test24")
         print("NEWDB", new_db)
         # Not working yet, need to look into del_db
         #   del_db = await flureeclient.delete_db(db_id="dev/test14")

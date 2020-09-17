@@ -242,7 +242,18 @@ If the client needs a new signing key with public key and key id, the **new\_key
 
 ```
 
-NOTE: The await for this method doesn't (yet) guarantee the database actually exists yet.
+If you want to access a database directly after creating it, please note that when await returns, the database might not exist yet and queries and transactions could fail. The database object has a convenience awaitable *ready* method to address this problem.
+
+```python
+    ..
+    async with  FlureeClient(privkey, addr, port=8090) as flureeclient:
+        await flureeclient.health.ready()
+        await flureeclient.new_db(db_id=semi_unique_db)
+        db = await flureeclient[semi_unique_db]
+    async with db(privkey, addr) as database:
+        await database.ready()
+    ..
+```
 
 ### More comming up.
 

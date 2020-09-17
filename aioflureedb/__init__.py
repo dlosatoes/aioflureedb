@@ -77,6 +77,7 @@ class FlureeTransactionFailure(FlureeException):
         """
         FlureeException.__init__(self, message)
 
+
 def _dryrun(method, url, headers, body):
     """Helper function for debugging the library
 
@@ -101,15 +102,16 @@ def _dryrun(method, url, headers, body):
     print("             ", method)
     print("################################")
     print("    ", url)
-    if not headers is None:
+    if headers is not None:
         print("########### HEADERS ############")
         for key in headers:
             print(key, ":", headers[key])
-    if not body is None:
+    if body is not None:
         print("############ BODY ##############")
         print(body)
         print("################################")
     return {"dryrun": True}
+
 
 class _FlureeQlQuery:
     """Helper class for FlureeQL query syntactic sugar"""
@@ -805,6 +807,19 @@ class _FlureeDbClient:
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
         self.implemented = set(["query", "flureeql", "command"])
+
+    async def ready(self):
+        """Awaitable that polls the database untill the schema contains collections"""
+        while True:
+            try:
+
+                await self.flureeql.query(
+                    select=["_collection/name"],
+                    ffrom="_collection"
+                )
+                return
+            except FlureeHttpError:
+                await asyncio.sleep(0.1)
 
     async def __aexit__(self, exc_type, exc, traceback):
         await self.close_session()
