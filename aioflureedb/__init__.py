@@ -806,7 +806,7 @@ class _FlureeDbClient:
                                     "storage",
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
-        self.implemented = set(["query", "flureeql", "command"])
+        self.implemented = set(["query", "flureeql", "block", "command"])
 
     async def ready(self):
         """Awaitable that polls the database untill the schema contains collections"""
@@ -891,6 +891,7 @@ class _FlureeDbClient:
                 ssl_verify_disabled: bool
                     If https, dont validate ssl certs.
                 """
+                self.api_endpoint = api_endpoint
                 secure = ""
                 if client.https:
                     secure = "s"
@@ -956,7 +957,7 @@ class _FlureeDbClient:
                     Return body from server
                 """
                 if self.signer:
-                    body, headers, _ = self.signer.sign_query(query_body)
+                    body, headers, _ = self.signer.sign_query(query_body, querytype=self.api_endpoint)
                 else:
                     body = json.dumps(query_body, indent=4, sort_keys=True)
                     headers = {"Content-Type": "application/json"}
@@ -1026,13 +1027,14 @@ class _FlureeDbClient:
                 AttributeError
                     When anything other than 'query' is provided as method.
                 """
-                if api_endpoint in ["query", "flureeql"]:
+                # TODO: Actually validate the method parameter!
+                if api_endpoint in ["query", "flureeql", "block"]:
                     return _FlureeQlQuery(self)
                 raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
 
             async def actual_query(self, query_object):
-                """Query wit a python dict that should get JSON serialized and convert JSON
-                   response back into a pthhon object
+                """Execure a query with a python dict that should get JSON serialized and convert JSON
+                   response back into a python object
 
                 Parameters
                 ----------
@@ -1047,8 +1049,8 @@ class _FlureeDbClient:
                 return_body = await self.stringendpoint.header_signed(query_object)
                 return json.loads(return_body)
 
-        class TransactionEndpoint:
-            """Endpoint for FlureeQL queries"""
+        class CommandEndpoint:
+            """Endpoint for FlureeQL command"""
             def __init__(self, api_endpoint, client):
                 """Constructor
 
@@ -1094,6 +1096,7 @@ class _FlureeDbClient:
                             raise FlureeTransactionFailure("Transaction failed:" + status[0]["_tx/error"])
                         return status[0]
                     await asyncio.sleep(0.1)
+
         if api_endpoint not in self.known_endpoints:
             raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
         if api_endpoint not in self.implemented:
@@ -1101,5 +1104,5 @@ class _FlureeDbClient:
         if api_endpoint in ["command"]:
             if self.signer is None:
                 raise FlureeKeyRequired("Command endpoint not supported in open-API mode. privkey required!")
-            return TransactionEndpoint(api_endpoint, self)
+            return CommandEndpoint(api_endpoint, self)
         return FlureeQlEndpoint(api_endpoint, self, self.ssl_verify_disabled)
