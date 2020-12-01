@@ -113,6 +113,18 @@ def _dryrun(method, url, headers, body):
     return {"dryrun": True}
 
 
+_FLUREEQLQUERY_ENDPOINT_PERMISSIONS = {
+    'query': {
+        'permitted': {"select", "selectOne", "selectDistinct", "from", "where", "block", "prefixes", "vars", "opts"},
+        'depricated': {"filter", "union", "optional", "limit", "offset", "orderBy", "groupBy", "prettyPrint"}
+    },
+    'block': {
+        'permitted': {"block"},
+        'depricated': {'prettyPrint'}
+    }
+}
+
+
 class _FlureeQlQuery:
     """Helper class for FlureeQL query syntactic sugar"""
     def __init__(self, endpoint):
@@ -124,23 +136,8 @@ class _FlureeQlQuery:
                    API endpoint for communicating FlureeQL queries with FlureeDB
         """
         self.endpoint = endpoint
-        self.permittedkeys = set(["select",
-                                  "selectOne",
-                                  "selectDistinct",
-                                  "from",
-                                  "where",
-                                  "block",
-                                  "prefixes",
-                                  "vars",
-                                  "opts"])
-        self.depricatedkeys = set(["filter",
-                                   "union",
-                                   "optional",
-                                   "limit",
-                                   "offset",
-                                   "orderBy",
-                                   "groupBy",
-                                   "prettyPrint"])
+        self.permittedkeys = _FLUREEQLQUERY_ENDPOINT_PERMISSIONS[endpoint.api_endpoint]['permitted']
+        self.depricatedkeys = _FLUREEQLQUERY_ENDPOINT_PERMISSIONS[endpoint.api_endpoint]['depricated']
 
     async def __call__(self, **kwargs):
         """FlureeQl query construction through keyword arguments
@@ -997,6 +994,8 @@ class _FlureeDbClient:
                 """
                 if api_endpoint == "flureeql":
                     api_endpoint = "query"
+
+                self.api_endpoint = api_endpoint
                 self.stringendpoint = _StringEndpoint(api_endpoint, client, ssl_verify_disabled)
 
             def __dir__(self):
@@ -1027,10 +1026,9 @@ class _FlureeDbClient:
                 AttributeError
                     When anything other than 'query' is provided as method.
                 """
-                # TODO: Actually validate the method parameter!
-                if api_endpoint in ["query", "flureeql", "block"]:
-                    return _FlureeQlQuery(self)
-                raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
+                if method != 'query':
+                    raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
+                return _FlureeQlQuery(self)
 
             async def actual_query(self, query_object):
                 """Execure a query with a python dict that should get JSON serialized and convert JSON
