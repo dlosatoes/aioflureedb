@@ -262,6 +262,13 @@ If you want to access a database directly after creating it, please note that wh
     ..
 ```
 
+### ledger-stats
+```python
+   ...
+   result = await database.ledger_stats()
+   ...
+```
+
 ### More comming up.
 
 The above is the API for the 0.1 release of aioflureedb. Many API endpoints arent supported yet and none of them has currently been prioritized. Please [submit an issue](https://github.com/pibara/aioflureedb/issues) to help with prioritazion. Pull requests are also very much welcomed. Please make sure your patches don't brake either *pylint* with the [provided config](https://github.com/pibara/aioflureedb/blob/master/.pylintrc) or *pycodestyle* using the *--max-line-length=128* option.
@@ -286,7 +293,6 @@ If you feel any of these requires priority, please [submit an issue](https://git
 * list\_snapshots
 * export
 * multi\_query
-* block
 * history
 * transact
 * graphql
@@ -297,7 +303,6 @@ If you feel any of these requires priority, please [submit an issue](https://git
 * query\_with
 * test\_transact\_with
 * block\_range\_with
-* ledger\_stats
 * storage
 * pw
   * generate

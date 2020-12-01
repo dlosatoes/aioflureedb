@@ -803,7 +803,7 @@ class _FlureeDbClient:
                                     "storage",
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
-        self.implemented = set(["query", "flureeql", "block", "command"])
+        self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats"])
 
     async def ready(self):
         """Awaitable that polls the database untill the schema contains collections"""
@@ -978,6 +978,16 @@ class _FlureeDbClient:
                 headers = {"content-type": "application/json"}
                 return await self._post_body_with_headers(body, headers)
 
+            async def empty_post_unsigned(self):
+                """Do an HTTP POST without body and without signing
+
+                Returns
+                -------
+                string
+                    Return body from server
+                """
+                return await self._post_body_with_headers(None, None)
+
         class FlureeQlEndpoint:
             """Endpoint for JSON based (FlureeQl) queries"""
             def __init__(self, api_endpoint, client, ssl_verify_disabled):
@@ -1095,6 +1105,24 @@ class _FlureeDbClient:
                         return status[0]
                     await asyncio.sleep(0.1)
 
+        class LedgerStatsEndpoint:
+            """Endpoint for ledger_stats"""
+            def __init__(self, client):
+                """Constructor
+
+                Parameters
+                ----------
+                api_endpoint : string
+                               Name of the API endpoint
+                client: object
+                        The wrapping _FlureeDbClient
+                """
+                self.stringendpoint = _StringEndpoint('ledger_stats', client)
+
+            async def __call__(self, **kwargs):
+                return_body = await self.stringendpoint.empty_post_unsigned()
+                return json.loads(return_body)
+
         if api_endpoint not in self.known_endpoints:
             raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
         if api_endpoint not in self.implemented:
@@ -1103,4 +1131,6 @@ class _FlureeDbClient:
             if self.signer is None:
                 raise FlureeKeyRequired("Command endpoint not supported in open-API mode. privkey required!")
             return CommandEndpoint(api_endpoint, self)
+        if api_endpoint == 'ledger_stats':
+            return LedgerStatsEndpoint(self)
         return FlureeQlEndpoint(api_endpoint, self, self.ssl_verify_disabled)
