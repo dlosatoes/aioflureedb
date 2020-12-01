@@ -40,12 +40,13 @@ After that, you should be able to run:
 
 ## Work in progress
 
-The aioflureedb library is currently functioning for the API endpoints that it implements. 
+The aioflureedb library is currently functioning for the API endpoints that it implements.
 These are:
 
 * health  (fluree client)
 * dbs     (fluree client)
 * query   (database client)
+* block   (database client)
 * command (database client)
 
 Other endpoints are curently not supported yet.
@@ -58,7 +59,7 @@ If you feel the API is lacking endpoint support that you need for your project, 
 
 ### Help with code
 
-**Pull request** with API-endpoint code are very much welcome. 
+**Pull request** with API-endpoint code are very much welcome.
 
 If you do (plan to) create a pull request, please:
 

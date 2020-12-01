@@ -28,17 +28,17 @@ async def fluree_main(privkey, addr):
       ...
 ```
 
-In the 0.1 version of the API, all supported signed operations are on an existing database, so the below isn't usefull yet, but for the importance of a stable API, you can provide a private key and key id. These will be used when non-existing-db related signed operations get implemented (new\_db, delete\_db, add\_server, remove\_server). 
+In the 0.1 version of the API, all supported signed operations are on an existing database, so the below isn't usefull yet, but for the importance of a stable API, you can provide a private key and key id. These will be used when non-existing-db related signed operations get implemented (new\_db, delete\_db, add\_server, remove\_server).
 ```python
 async def fluree_main(masterkey=privkey, addr):
     async with  aioflureedb.FlureeClient(masterkey=privkey, auth_addressaddr) as flureeclient:
        ...
 ```
 
-There are some optional arguments to the constructor of the FlureeClient. 
+There are some optional arguments to the constructor of the FlureeClient.
 ```python
 async def fluree_main(privkey, addr):
-    async with aioflureedb.FlureeClient(masterkey=privkey, 
+    async with aioflureedb.FlureeClient(masterkey=privkey,
                                         auth_address=addr,
                                         host="fluree.demo.com",
                                         port=443,
@@ -120,7 +120,7 @@ async def fluree_main(privkey, addr):
     ...
 ```
 
-It is important to note that the signing key used for things like database creation and that used for transacting with or querying the database most likely will not be the same. 
+It is important to note that the signing key used for things like database creation and that used for transacting with or querying the database most likely will not be the same.
 ```python
 async def fluree_main(privkey1, addr1, privkey2, addr2):
     async with aioflureedb.FlureeClient(privkey1, addr1) as flureeclient:
@@ -130,7 +130,7 @@ async def fluree_main(privkey1, addr1, privkey2, addr2):
        ...
 ```
 
-Or for convenience: 
+Or for convenience:
 
 ```python
 async def fluree_main(privkey1, addr1, privkey2, addr2):
@@ -140,7 +140,7 @@ async def fluree_main(privkey1, addr1, privkey2, addr2):
         ...
 ```
 
-In case of an open API fluree host, no signing keys are needed. 
+In case of an open API fluree host, no signing keys are needed.
 ```python
 async def fluree_main():
     async with aioflureedb.FlureeClient() as flureeclient:
@@ -180,6 +180,13 @@ There is an alias *flureeql* for the query endpoint for eastetic reasons.
    ...
 ```
 
+#### Block endpoint
+Here is an example of a query on the block endpoint:
+```python
+   ...
+   result = await database.block.query(block=[1,2])
+   ...
+```
 
 ### Transactions
 
@@ -236,9 +243,9 @@ If the client needs a new signing key with public key and key id, the **new\_key
 ```python
 
    try:
-       await flureeclient.new_db(db_id="dev/test6") 
+       await flureeclient.new_db(db_id="dev/test6")
    except aioflureedb.FlureeHttpError as exp:
-       print("Oops, problem creating database:", exp) 
+       print("Oops, problem creating database:", exp)
 
 ```
 
@@ -253,6 +260,13 @@ If you want to access a database directly after creating it, please note that wh
     async with db(privkey, addr) as database:
         await database.ready()
     ..
+```
+
+### ledger-stats
+```python
+   ...
+   result = await database.ledger_stats()
+   ...
 ```
 
 ### More comming up.
@@ -279,7 +293,6 @@ If you feel any of these requires priority, please [submit an issue](https://git
 * list\_snapshots
 * export
 * multi\_query
-* block
 * history
 * transact
 * graphql
@@ -290,7 +303,6 @@ If you feel any of these requires priority, please [submit an issue](https://git
 * query\_with
 * test\_transact\_with
 * block\_range\_with
-* ledger\_stats
 * storage
 * pw
   * generate

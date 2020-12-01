@@ -113,6 +113,18 @@ def _dryrun(method, url, headers, body):
     return {"dryrun": True}
 
 
+_FLUREEQLQUERY_ENDPOINT_PERMISSIONS = {
+    'query': {
+        'permitted': {"select", "selectOne", "selectDistinct", "from", "where", "block", "prefixes", "vars", "opts"},
+        'depricated': {"filter", "union", "optional", "limit", "offset", "orderBy", "groupBy", "prettyPrint"}
+    },
+    'block': {
+        'permitted': {"block"},
+        'depricated': {'prettyPrint'}
+    }
+}
+
+
 class _FlureeQlQuery:
     """Helper class for FlureeQL query syntactic sugar"""
     def __init__(self, endpoint):
@@ -124,23 +136,8 @@ class _FlureeQlQuery:
                    API endpoint for communicating FlureeQL queries with FlureeDB
         """
         self.endpoint = endpoint
-        self.permittedkeys = set(["select",
-                                  "selectOne",
-                                  "selectDistinct",
-                                  "from",
-                                  "where",
-                                  "block",
-                                  "prefixes",
-                                  "vars",
-                                  "opts"])
-        self.depricatedkeys = set(["filter",
-                                   "union",
-                                   "optional",
-                                   "limit",
-                                   "offset",
-                                   "orderBy",
-                                   "groupBy",
-                                   "prettyPrint"])
+        self.permittedkeys = _FLUREEQLQUERY_ENDPOINT_PERMISSIONS[endpoint.api_endpoint]['permitted']
+        self.depricatedkeys = _FLUREEQLQUERY_ENDPOINT_PERMISSIONS[endpoint.api_endpoint]['depricated']
 
     async def __call__(self, **kwargs):
         """FlureeQl query construction through keyword arguments
@@ -806,7 +803,7 @@ class _FlureeDbClient:
                                     "storage",
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
-        self.implemented = set(["query", "flureeql", "command"])
+        self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats"])
 
     async def ready(self):
         """Awaitable that polls the database untill the schema contains collections"""
@@ -891,6 +888,7 @@ class _FlureeDbClient:
                 ssl_verify_disabled: bool
                     If https, dont validate ssl certs.
                 """
+                self.api_endpoint = api_endpoint
                 secure = ""
                 if client.https:
                     secure = "s"
@@ -956,7 +954,7 @@ class _FlureeDbClient:
                     Return body from server
                 """
                 if self.signer:
-                    body, headers, _ = self.signer.sign_query(query_body)
+                    body, headers, _ = self.signer.sign_query(query_body, querytype=self.api_endpoint)
                 else:
                     body = json.dumps(query_body, indent=4, sort_keys=True)
                     headers = {"Content-Type": "application/json"}
@@ -980,6 +978,16 @@ class _FlureeDbClient:
                 headers = {"content-type": "application/json"}
                 return await self._post_body_with_headers(body, headers)
 
+            async def empty_post_unsigned(self):
+                """Do an HTTP POST without body and without signing
+
+                Returns
+                -------
+                string
+                    Return body from server
+                """
+                return await self._post_body_with_headers(None, None)
+
         class FlureeQlEndpoint:
             """Endpoint for JSON based (FlureeQl) queries"""
             def __init__(self, api_endpoint, client, ssl_verify_disabled):
@@ -996,6 +1004,8 @@ class _FlureeDbClient:
                 """
                 if api_endpoint == "flureeql":
                     api_endpoint = "query"
+
+                self.api_endpoint = api_endpoint
                 self.stringendpoint = _StringEndpoint(api_endpoint, client, ssl_verify_disabled)
 
             def __dir__(self):
@@ -1026,13 +1036,13 @@ class _FlureeDbClient:
                 AttributeError
                     When anything other than 'query' is provided as method.
                 """
-                if api_endpoint in ["query", "flureeql"]:
-                    return _FlureeQlQuery(self)
-                raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
+                if method != 'query':
+                    raise AttributeError("FlureeQlEndpoint has no attribute named " + method)
+                return _FlureeQlQuery(self)
 
             async def actual_query(self, query_object):
-                """Query wit a python dict that should get JSON serialized and convert JSON
-                   response back into a pthhon object
+                """Execure a query with a python dict that should get JSON serialized and convert JSON
+                   response back into a python object
 
                 Parameters
                 ----------
@@ -1047,8 +1057,8 @@ class _FlureeDbClient:
                 return_body = await self.stringendpoint.header_signed(query_object)
                 return json.loads(return_body)
 
-        class TransactionEndpoint:
-            """Endpoint for FlureeQL queries"""
+        class CommandEndpoint:
+            """Endpoint for FlureeQL command"""
             def __init__(self, api_endpoint, client):
                 """Constructor
 
@@ -1094,6 +1104,30 @@ class _FlureeDbClient:
                             raise FlureeTransactionFailure("Transaction failed:" + status[0]["_tx/error"])
                         return status[0]
                     await asyncio.sleep(0.1)
+
+        class LedgerStatsEndpoint:
+            """Endpoint for ledger_stats"""
+            def __init__(self, client):
+                """Constructor
+
+                Parameters
+                ----------
+                client: object
+                        The wrapping _FlureeDbClient
+                """
+                self.stringendpoint = _StringEndpoint('ledger_stats', client)
+
+            async def __call__(self):
+                """Send request to ledger-stats endpoint and retrieve result
+
+                Returns
+                -------
+                dict
+                    json decode result from the server.
+                """
+                return_body = await self.stringendpoint.empty_post_unsigned()
+                return json.loads(return_body)
+
         if api_endpoint not in self.known_endpoints:
             raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
         if api_endpoint not in self.implemented:
@@ -1101,5 +1135,7 @@ class _FlureeDbClient:
         if api_endpoint in ["command"]:
             if self.signer is None:
                 raise FlureeKeyRequired("Command endpoint not supported in open-API mode. privkey required!")
-            return TransactionEndpoint(api_endpoint, self)
+            return CommandEndpoint(api_endpoint, self)
+        if api_endpoint == 'ledger_stats':
+            return LedgerStatsEndpoint(self)
         return FlureeQlEndpoint(api_endpoint, self, self.ssl_verify_disabled)
