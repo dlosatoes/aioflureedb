@@ -1112,14 +1112,19 @@ class _FlureeDbClient:
 
                 Parameters
                 ----------
-                api_endpoint : string
-                               Name of the API endpoint
                 client: object
                         The wrapping _FlureeDbClient
                 """
                 self.stringendpoint = _StringEndpoint('ledger_stats', client)
 
-            async def __call__(self, **kwargs):
+            async def __call__(self):
+                """Send request to ledger-stats endpoint and retrieve result
+
+                Returns
+                -------
+                dict
+                    json decode result from the server.
+                """
                 return_body = await self.stringendpoint.empty_post_unsigned()
                 return json.loads(return_body)
 
