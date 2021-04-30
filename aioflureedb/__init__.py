@@ -121,6 +121,14 @@ _FLUREEQLQUERY_ENDPOINT_PERMISSIONS = {
     'block': {
         'permitted': {"block"},
         'depricated': {'prettyPrint'}
+    },
+    'list_snapshots': {
+        'permitted': {},
+        'depricated': {}
+    },
+    'snapshot': {
+        'permitted': {},
+        'depricated': {}
     }
 }
 
@@ -803,7 +811,7 @@ class _FlureeDbClient:
                                     "storage",
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
-        self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats"])
+        self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats", "list_snapshots", "snapshot"])
 
     async def ready(self):
         """Awaitable that polls the database untill the schema contains collections"""

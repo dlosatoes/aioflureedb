@@ -80,7 +80,7 @@ It is also possible to poll the health endpoint
 
 ### Networks and databases
 
-Once we have a FlureeClient, we can use it to itterate over the avilable networks and databases, and do what we need to do with each database.
+Once we have a FlureeClient, we can use it to iterate over the avilable networks and databases, and do what we need to do with each database.
 ```python
     async for network in flureeclient:
         for db in network:
@@ -269,9 +269,26 @@ If you want to access a database directly after creating it, please note that wh
    ...
 ```
 
+### snapshot and list-snapshots
+Here is an example of creating a snapshot of a ledger:
+```python
+   ...
+   result = await database.snapshot.query()
+   # result now contains path to a new .avro file
+   ...
+```
+
+Here is an example of listing snapshots belonging to a ledger:
+```python
+   ...
+   result = await database.list_snapshots.query()
+   # result now contains a list of paths to .avro files
+   ...
+```
+
 ### More comming up.
 
-The above is the API for the 0.1 release of aioflureedb. Many API endpoints arent supported yet and none of them has currently been prioritized. Please [submit an issue](https://github.com/pibara/aioflureedb/issues) to help with prioritazion. Pull requests are also very much welcomed. Please make sure your patches don't brake either *pylint* with the [provided config](https://github.com/pibara/aioflureedb/blob/master/.pylintrc) or *pycodestyle* using the *--max-line-length=128* option.
+The above is the API for the 0.1 release of aioflureedb. Many API endpoints arent supported yet and none of them has currently been prioritized. Please [submit an issue](https://github.com/pibara/aioflureedb/issues) to help with prioritazion. Pull requests are also very much welcomed. Please make sure your patches don't break either *pylint* with the [provided config](https://github.com/pibara/aioflureedb/blob/master/.pylintrc) or *pycodestyle* using the *--max-line-length=128* option.
 
 #### TODO Utils
 
@@ -289,8 +306,6 @@ If you feel any of these requires priority, please [submit an issue](https://git
 
 #### Todo Database client endpoint support
 
-* snapshot
-* list\_snapshots
 * export
 * multi\_query
 * history
