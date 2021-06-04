@@ -331,8 +331,7 @@ class _SignedPoster:
             else:
                 async with self.session.post(self.url, data=body, headers=headers) as resp:
                     if resp.status != 200:
-                        rbody = await resp.text()
-                        raise FlureeHttpError(rbody, resp.status)
+                        raise FlureeHttpError(await resp.text(), resp.status)
                     data = await resp.text()
                     try:
                         return json.loads(data)
@@ -936,12 +935,12 @@ class _FlureeDbClient:
                 """
                 if self.session:
                     if self.ssl_verify_disabled:
-                        async with self.session.post(self.url, data=body, headers=headers) as resp:
+                        async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
                             if resp.status != 200:
                                 raise FlureeHttpError(await resp.text(), resp.status)
                             return await resp.text()
                     else:
-                        async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
+                        async with self.session.post(self.url, data=body, headers=headers) as resp:
                             if resp.status != 200:
                                 raise FlureeHttpError(await resp.text(), resp.status)
                             return await resp.text()
