@@ -1007,7 +1007,7 @@ class _FlureeDbClient:
                             # Ectract the collection name
                             collection = grouped[obj][0][1].split("/")[0]
                             # Trigger on collection if in map
-                            if collection in self.monitor["listeners"][collection]:
+                            if collection in self.monitor["listeners"]:
                                 latest = await self.flureeql.query(select=["*"], ffrom=obj)
                                 if not self.monitor["running"]:
                                     return
@@ -1040,7 +1040,9 @@ class _FlureeDbClient:
                                         if not self.monitor["running"]:
                                             return
                         # Call the persistence layer.
-                        self.monitor["on_block_processed"](block)
+                        await self.monitor["on_block_processed"](block)
+                    # Set the new start block.
+                    startblock = block
             else:
                 stats_error_count += 1
                 if stats_error_count > 100:
