@@ -780,6 +780,13 @@ class _FlureeDbClient:
         self.port = port
         self.https = https
         self.ssl_verify_disabled = False
+        self.monitor = dict()
+        self.monitor["listeners"] = dict()
+        self.monitor["running"] = False
+        self.monitor["next"] = None
+        self.monitor["rewind"] = 0
+        self.monitor["on_block_processed"] = None
+        self.monitor["predicate_map"] = dict()
         if https and not ssl_verify:
             self.ssl_verify_disabled = True
         self.signer = None
@@ -811,6 +818,233 @@ class _FlureeDbClient:
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
         self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats", "list_snapshots", "snapshot"])
+
+    def monitor_init(self, on_block_processed, start_block=None, rewind=0):
+        """Set the basic variables for a fluree block event monitor run
+
+        Parameters
+        ----------
+        on_block_processed: callable
+                Callback to invoke when a block has been fully processed.
+
+        start_block: int
+                Block number to start at, instead of the next block to arive on the blockchain
+
+        rewind: int
+                Number of seconds to rewind from now. Currently not implemented.
+
+        Raises
+        ------
+        NotImplementedError
+            Currently raised when rewind is specified.
+
+        """
+
+        assert callable(on_block_processed)
+        assert start_block is None or isinstance(start_block, int)
+        assert isinstance(rewind, int)
+        if rewind != 0:
+            raise NotImplementedError("rewind is not yet implemented")
+        self.monitor["next"] = start_block
+        self.monitor["rewind"] = rewind
+        self.monitor["on_block_processed"] = on_block_processed
+
+    def monitor_register_create(self, collection, callback):
+        """Add a callback for create events on a collection
+
+        Parameters
+        ----------
+        collection: str
+                Name of the collection to monitor
+
+        callback: callable
+                Callback to invoke when create event on collection is identified.
+
+        """
+        assert isinstance(collection, str)
+        assert callable(callback)
+        if collection not in self.monitor["listeners"]:
+            self.monitor["listeners"][collection] = dict()
+        self.monitor["listeners"][collection]["C"] = set()
+        self.monitor["listeners"][collection]["C"].add(callback)
+
+    def monitor_register_delete(self, collection, callback):
+        """Add a callback for delete events on a collection
+
+        Parameters
+        ----------
+        collection: str
+                Name of the collection to monitor
+
+        callback: callable
+                Callback to invoke when delete event on collection is identified.
+
+        """
+        assert isinstance(collection, str)
+        assert callable(callback)
+        if collection not in self.monitor["listeners"]:
+            self.monitor["listeners"][collection] = dict()
+        self.monitor["listeners"][collection]["D"] = set()
+        self.monitor["listeners"][collection]["D"].add(callback)
+
+    def monitor_register_update(self, collection, callback, predicates=None):
+        """Add a callback for update events on a collection
+
+        Parameters
+        ----------
+        collection: str
+                Name of the collection to monitor
+
+        callback: callable
+                Callback to invoke when update event on collection is identified.
+
+        predicates: list
+                List of predicates. If defined, at laest one of these predicates should have been set or updated.
+
+        Raises
+        ------
+        NotImplementedError
+            Currently raised when predicates is specified.
+
+        """
+
+        assert isinstance(collection, str)
+        assert callable(callback)
+        assert predicates is None or isinstance(predicates, list)
+        if isinstance(predicates, list):
+            assert bool(predicates)
+            for predicate in predicates:
+                assert isinstance(predicate, str)
+            raise NotImplementedError("predicates not yet implemented for monitor_register_update")
+        if collection not in self.monitor["listeners"]:
+            self.monitor["listeners"][collection] = dict()
+        self.monitor["listeners"][collection]["U"] = dict()
+        self.monitor["listeners"][collection]["U"]["callback"] = set()
+        self.monitor["listeners"][collection]["U"]["callback"].add(callback)
+        self.monitor["listeners"][collection]["U"]["predicates"] = predicates
+
+    def monitor_close(self):
+        """Abort running any running monitor"""
+        self.monitor["running"] = False
+
+    async def monitor_untill_stopped(self):
+        """Run the block event monitor untill stopped
+
+        Raises
+        ------
+        NotImplementedError
+            Currently raised when rewing is specified.
+
+        RuntimeError
+            Raised either when there are no listeners set, or if there are too many errors.
+
+        """
+        # TODO: fix these when we look at getting rid of the extra queries.
+        # pylint: disable = too-many-nested-blocks, too-many-locals, too-many-return-statements, too-many-branches, too-many-statements
+        # Some basic asserts
+        if not bool(self.monitor["listeners"]):
+            raise RuntimeError("Can't start monitor with zero registered listeners")
+        if self.monitor["rewind"] != 0:
+            raise NotImplementedError("rewind is not implemented yet!")
+        # Set running to true. We shall abort when it is set to false.
+        self.monitor["running"] = True
+        # First make a dict from the _predicate collection.
+        predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate")
+        if not self.monitor["running"]:
+            return
+        predicate = dict()
+        for pred in predicates:
+            predicate[pred["_id"]] = pred["name"]
+        noblocks = True
+        if self.monitor["next"] is None:
+            stats = await self.ledger_stats()
+            if not self.monitor["running"]:
+                return
+            if "status" in stats and stats["status"] == 200 and "data" in stats and "block" in stats["data"]:
+                startblock = stats["data"]["block"]
+            else:
+                raise RuntimeError("Invalid initial response from ledger_stats")
+        else:
+            startblock = self.monitor["next"]
+        stats_error_count = 0
+        while self.monitor["running"]:
+            # If we had zero blocks to process the last time around, wait a full second before polling again if there are
+            #  new blocks.
+            if noblocks:
+                await asyncio.sleep(1)
+                if not self.monitor["running"]:
+                    return
+            noblocks = True
+            # Get the latest ledger stats.
+            stats = await self.ledger_stats()
+            if not self.monitor["running"]:
+                return
+            if "status" in stats and stats["status"] == 200 and "data" in stats and "block" in stats["data"]:
+                stats_error_count = 0
+                endblock = stats["data"]["block"]
+                if endblock > startblock:
+                    noblocks = False
+                    for block in range(startblock + 1, endblock + 1):
+                        grouped = dict()
+                        # Fetch the new block
+                        block_data = await self.block.query(block=block)
+                        if not self.monitor["running"]:
+                            return
+                        # Itterate all flakes.
+                        for flake in block_data[0]["flakes"]:
+                            predno = flake[1]
+                            # Patch numeric predicates to textual ones.
+                            if predno in predicate:
+                                flake[1] = predicate[predno]
+                            else:
+                                raise RuntimeError("Need a restart after new predicates are added to the database")
+                            # Group the flakes together by object.
+                            if not flake[0] in grouped:
+                                grouped[flake[0]] = list()
+                            grouped[flake[0]].append(flake)
+                        # Process per object.
+                        for obj in grouped:
+                            # Ectract the collection name
+                            collection = grouped[obj][0][1].split("/")[0]
+                            # Trigger on collection if in map
+                            if collection in self.monitor["listeners"][collection]:
+                                latest = await self.flureeql.query(select=["*"], ffrom=obj)
+                                if not self.monitor["running"]:
+                                    return
+                                if latest:
+                                    latest = latest[0]
+                                else:
+                                    latest = None
+                                previous = await self.flureeql.query(select=["*"], ffrom=obj, block=block-1)
+                                if not self.monitor["running"]:
+                                    return
+                                if previous:
+                                    previous = previous[0]
+                                else:
+                                    previous = None
+                                if latest is None:
+                                    if "D" in self.monitor["listeners"][collection]:
+                                        for callback in self.monitor["listeners"][collection]["D"]:
+                                            await callback(obj, grouped[obj])
+                                            if not self.monitor["running"]:
+                                                return
+                                elif previous is None:
+                                    if "C" in self.monitor["listeners"][collection]:
+                                        for callback in self.monitor["listeners"][collection]["C"]:
+                                            await callback(obj, grouped[obj])
+                                            if not self.monitor["running"]:
+                                                return
+                                elif "U" in self.monitor["listeners"][collection]:
+                                    for updateinfo in self.monitor["listeners"][collection]["U"]:
+                                        await updateinfo["callback"](obj, grouped[obj])
+                                        if not self.monitor["running"]:
+                                            return
+                        # Call the persistence layer.
+                        self.monitor["on_block_processed"](block)
+            else:
+                stats_error_count += 1
+                if stats_error_count > 100:
+                    raise RuntimeError("Too many errors from ledger_stats call")
 
     async def ready(self):
         """Awaitable that polls the database untill the schema contains collections"""
