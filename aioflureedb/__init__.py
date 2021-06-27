@@ -819,7 +819,7 @@ class _FlureeDbClient:
         self.pw_endpoints = set(["generate", "renew", "login"])
         self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats", "list_snapshots", "snapshot"])
 
-    def monitor_init(self, on_block_processed, start_block=None, rewind=0):
+    def monitor_init(self, on_block_processed, start_block=None, rewind=0, use_flakes=True):
         """Set the basic variables for a fluree block event monitor run
 
         Parameters
@@ -847,6 +847,7 @@ class _FlureeDbClient:
             raise NotImplementedError("rewind is not yet implemented")
         self.monitor["next"] = start_block
         self.monitor["rewind"] = rewind
+        self.monitor["use_fakes"] = use_flakes
         self.monitor["on_block_processed"] = on_block_processed
 
     def monitor_register_create(self, collection, callback):
@@ -1008,7 +1009,7 @@ class _FlureeDbClient:
                             collection = grouped[obj][0][1].split("/")[0]
                             # Trigger on collection if in map
                             if collection in self.monitor["listeners"]:
-                                latest = await self.flureeql.query(select=["*"], ffrom=obj)
+                                latest = await self.flureeql.query(select=["*"], ffrom=obj, block=block)
                                 if not self.monitor["running"]:
                                     return
                                 if latest:
@@ -1025,18 +1026,27 @@ class _FlureeDbClient:
                                 if latest is None:
                                     if "D" in self.monitor["listeners"][collection]:
                                         for callback in self.monitor["listeners"][collection]["D"]:
-                                            await callback(obj, grouped[obj])
+                                            if self.monitor["use_fakes"]:
+                                                await callback(obj, grouped[obj])
+                                            else:
+                                                await callback(obj, previous)
                                             if not self.monitor["running"]:
                                                 return
                                 elif previous is None:
                                     if "C" in self.monitor["listeners"][collection]:
                                         for callback in self.monitor["listeners"][collection]["C"]:
-                                            await callback(obj, grouped[obj])
+                                            if self.monitor["use_fakes"]:
+                                                await callback(obj, grouped[obj])
+                                            else:
+                                                await callback(obj, latest)
                                             if not self.monitor["running"]:
                                                 return
                                 elif "U" in self.monitor["listeners"][collection]:
                                     for updateinfo in self.monitor["listeners"][collection]["U"]:
-                                        await updateinfo["callback"](obj, grouped[obj])
+                                        if self.monitor["use_fakes"]:
+                                            await updateinfo["callback"](obj, grouped[obj])
+                                        else:
+                                            await updateinfo["callback"](obj, [previous, latest])
                                         if not self.monitor["running"]:
                                             return
                         # Call the persistence layer.
