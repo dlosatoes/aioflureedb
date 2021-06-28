@@ -24,7 +24,7 @@ async def blocks_demo():
     print("Opening database")
     async with db() as database:
         print("Initializing monitor")
-        database.monitor_init(blockmon, 1, use_flakes=False)
+        database.monitor_init(blockmon, 1, use_flakes=True)
         database.monitor_register_create("_auth", new_user)
         database.monitor_register_delete("_auth", dropped_user)
         database.monitor_register_update("_auth", updated_user)
