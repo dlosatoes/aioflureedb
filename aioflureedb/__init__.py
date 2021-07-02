@@ -833,6 +833,9 @@ class _FlureeDbClient:
         rewind: int
                 Number of seconds to rewind from now. Currently not implemented.
 
+        use_flakes: bool
+                Boolean choosing if we want to run efficiently and return only flakes, or if we want to allow extra queries to fluree and return whole objects.
+
         Raises
         ------
         NotImplementedError
@@ -843,11 +846,9 @@ class _FlureeDbClient:
         assert callable(on_block_processed)
         assert start_block is None or isinstance(start_block, int)
         assert isinstance(rewind, int)
-        if rewind != 0:
-            raise NotImplementedError("rewind is not yet implemented")
         self.monitor["next"] = start_block
         self.monitor["rewind"] = rewind
-        self.monitor["use_fakes"] = use_flakes
+        self.monitor["use_flakes"] = use_flakes
         self.monitor["on_block_processed"] = on_block_processed
 
     def monitor_register_create(self, collection, callback):
@@ -866,7 +867,8 @@ class _FlureeDbClient:
         assert callable(callback)
         if collection not in self.monitor["listeners"]:
             self.monitor["listeners"][collection] = dict()
-        self.monitor["listeners"][collection]["C"] = set()
+        if "C" not in self.monitor["listeners"][collection]:
+            self.monitor["listeners"][collection]["C"] = set()
         self.monitor["listeners"][collection]["C"].add(callback)
 
     def monitor_register_delete(self, collection, callback):
@@ -885,10 +887,11 @@ class _FlureeDbClient:
         assert callable(callback)
         if collection not in self.monitor["listeners"]:
             self.monitor["listeners"][collection] = dict()
-        self.monitor["listeners"][collection]["D"] = set()
+        if "D" not in self.monitor["listeners"][collection]:
+            self.monitor["listeners"][collection]["D"] = set()
         self.monitor["listeners"][collection]["D"].add(callback)
 
-    def monitor_register_update(self, collection, callback, predicates=None):
+    def monitor_register_update(self, collection, callback):
         """Add a callback for update events on a collection
 
         Parameters
@@ -899,30 +902,15 @@ class _FlureeDbClient:
         callback: callable
                 Callback to invoke when update event on collection is identified.
 
-        predicates: list
-                List of predicates. If defined, at laest one of these predicates should have been set or updated.
-
-        Raises
-        ------
-        NotImplementedError
-            Currently raised when predicates is specified.
-
         """
 
         assert isinstance(collection, str)
         assert callable(callback)
-        assert predicates is None or isinstance(predicates, list)
-        if isinstance(predicates, list):
-            assert bool(predicates)
-            for predicate in predicates:
-                assert isinstance(predicate, str)
-            raise NotImplementedError("predicates not yet implemented for monitor_register_update")
         if collection not in self.monitor["listeners"]:
             self.monitor["listeners"][collection] = dict()
-        self.monitor["listeners"][collection]["U"] = dict()
-        self.monitor["listeners"][collection]["U"]["callback"] = set()
-        self.monitor["listeners"][collection]["U"]["callback"].add(callback)
-        self.monitor["listeners"][collection]["U"]["predicates"] = predicates
+        if "U" not in self.monitor["listeners"][collection]:
+            self.monitor["listeners"][collection]["U"] = set()
+        self.monitor["listeners"][collection]["U"].add(callback)
 
     def monitor_close(self):
         """Abort running any running monitor"""
@@ -946,7 +934,17 @@ class _FlureeDbClient:
         if not bool(self.monitor["listeners"]):
             raise RuntimeError("Can't start monitor with zero registered listeners")
         if self.monitor["rewind"] != 0:
-            raise NotImplementedError("rewind is not implemented yet!")
+            filt = "(> ?instant (- (now) (* 1000 " + str(self.monitor["rewind"]) + "))))"
+            rewind_block = await self.flureeql.query(
+                select=["?blockid"],
+                opts={"orderBy": ["ASC", "?instant"], "limit": 1},
+                where=[
+                    ["?block", "_block/instant", "?instant"],
+                    ["?block", "_block/number", "?blockid"],
+                    {"filter": [filt]}
+                ])
+            if rewind_block:
+                self.monitor["next"] = rewind_block[0][0]
         # Set running to true. We shall abort when it is set to false.
         self.monitor["running"] = True
         # First make a dict from the _predicate collection.
@@ -1026,7 +1024,7 @@ class _FlureeDbClient:
                                 if latest is None:
                                     if "D" in self.monitor["listeners"][collection]:
                                         for callback in self.monitor["listeners"][collection]["D"]:
-                                            if self.monitor["use_fakes"]:
+                                            if self.monitor["use_flakes"]:
                                                 await callback(obj, grouped[obj])
                                             else:
                                                 await callback(obj, previous)
@@ -1035,18 +1033,18 @@ class _FlureeDbClient:
                                 elif previous is None:
                                     if "C" in self.monitor["listeners"][collection]:
                                         for callback in self.monitor["listeners"][collection]["C"]:
-                                            if self.monitor["use_fakes"]:
+                                            if self.monitor["use_flakes"]:
                                                 await callback(obj, grouped[obj])
                                             else:
                                                 await callback(obj, latest)
                                             if not self.monitor["running"]:
                                                 return
                                 elif "U" in self.monitor["listeners"][collection]:
-                                    for updateinfo in self.monitor["listeners"][collection]["U"]:
-                                        if self.monitor["use_fakes"]:
-                                            await updateinfo["callback"](obj, grouped[obj])
+                                    for callback in self.monitor["listeners"][collection]["U"]:
+                                        if self.monitor["use_flakes"]:
+                                            await callback(obj, grouped[obj])
                                         else:
-                                            await updateinfo["callback"](obj, [previous, latest])
+                                            await callback(obj, [previous, latest])
                                         if not self.monitor["running"]:
                                             return
                         # Call the persistence layer.

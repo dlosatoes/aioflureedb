@@ -107,7 +107,7 @@ async def run_monitor(database, triggermap):
 async def blocks_demo(triggermap):
     async with aioflureedb.FlureeClient(port=8090) as flureeclient:
         await flureeclient.health.ready()
-        db = await flureeclient["dla/dla"]
+        db = await flureeclient["dla/base"]
     async with db() as database:
         await run_monitor(database, triggermap)
 
