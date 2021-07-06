@@ -943,8 +943,10 @@ class _FlureeDbClient:
                     ["?block", "_block/number", "?blockid"],
                     {"filter": [filt]}
                 ])
-            if rewind_block:
+            if rewind_block and  (self.monitor["next"] is None or  self.monitor["next"] < rewind_block[0][0]):
                 self.monitor["next"] = rewind_block[0][0]
+            if not rewind_block:
+                self.monitor["next"] = None
         # Set running to true. We shall abort when it is set to false.
         self.monitor["running"] = True
         # First make a dict from the _predicate collection.
@@ -1001,52 +1003,89 @@ class _FlureeDbClient:
                             if not flake[0] in grouped:
                                 grouped[flake[0]] = list()
                             grouped[flake[0]].append(flake)
+                        # Distill new ones using _tx/tempids
+                        new_objects = set()
+                        for obj in grouped:
+                            for flake in grouped[obj]:
+                                if flake[1] == '_tx/tempids':
+                                    newdict = json.loads(flake[2]);
+                                    for key in newdict:
+                                        new_objects.add(newdict[key]);
                         # Process per object.
                         for obj in grouped:
+                            if obj in new_objects:
+                                is_new = True
+                            else:
+                                is_new = False
+                            has_true = False
+                            for flake in grouped[obj]:
+                                if flake[4]:
+                                    has_true = True
                             # Ectract the collection name
                             collection = grouped[obj][0][1].split("/")[0]
                             # Trigger on collection if in map
                             if collection in self.monitor["listeners"]:
-                                latest = await self.flureeql.query(select=["*"], ffrom=obj, block=block)
-                                if not self.monitor["running"]:
-                                    return
-                                if latest:
-                                    latest = latest[0]
-                                else:
-                                    latest = None
-                                previous = await self.flureeql.query(select=["*"], ffrom=obj, block=block-1)
-                                if not self.monitor["running"]:
-                                    return
-                                if previous:
-                                    previous = previous[0]
-                                else:
-                                    previous = None
-                                if latest is None:
-                                    if "D" in self.monitor["listeners"][collection]:
-                                        for callback in self.monitor["listeners"][collection]["D"]:
-                                            if self.monitor["use_flakes"]:
+                                if self.monitor["use_flakes"]:
+                                    if is_new and has_true:
+                                        if "C" in self.monitor["listeners"][collection]:
+                                            for callback in self.monitor["listeners"][collection]["C"]:
                                                 await callback(obj, grouped[obj])
-                                            else:
-                                                await callback(obj, previous)
-                                            if not self.monitor["running"]:
-                                                return
-                                elif previous is None:
-                                    if "C" in self.monitor["listeners"][collection]:
-                                        for callback in self.monitor["listeners"][collection]["C"]:
-                                            if self.monitor["use_flakes"]:
-                                                await callback(obj, grouped[obj])
-                                            else:
-                                                await callback(obj, latest)
-                                            if not self.monitor["running"]:
-                                                return
-                                elif "U" in self.monitor["listeners"][collection]:
-                                    for callback in self.monitor["listeners"][collection]["U"]:
-                                        if self.monitor["use_flakes"]:
-                                            await callback(obj, grouped[obj])
+                                                if not self.monitor["running"]:
+                                                    return
+                                    else:
+                                        if not is_new:
+                                            if "U" in self.monitor["listeners"][collection]:
+                                                for callback in self.monitor["listeners"][collection]["U"]:
+                                                    await callback(obj, grouped[obj])
+                                                    if not self.monitor["running"]:
+                                                        return
+
                                         else:
-                                            await callback(obj, [previous, latest])
+                                            if "D" in self.monitor["listeners"][collection]:
+                                                for callback in self.monitor["listeners"][collection]["D"]:
+                                                    await callback(obj, grouped[obj])
+                                                    if not self.monitor["running"]:
+                                                        return
+                                else:
+                                    if has_true:
+                                        latest = await self.flureeql.query(select=["*"], ffrom=obj, block=block)
                                         if not self.monitor["running"]:
                                             return
+                                        if latest:
+                                            latest = latest[0]
+                                        else:
+                                            latest = None
+                                    else:
+                                        latesat = None
+                                    if is_new and has_true:
+                                        previous = None;
+                                    else:
+                                        previous = await self.flureeql.query(select=["*"], ffrom=obj, block=block-1)
+                                        if not self.monitor["running"]:
+                                            return
+                                        if previous:
+                                            previous = previous[0]
+                                        else:
+                                            previous = None
+                                    if is_new and has_true:
+                                        if "D" in self.monitor["listeners"][collection]:
+                                            for callback in self.monitor["listeners"][collection]["D"]:
+                                                await callback(obj, previous)
+                                                if not self.monitor["running"]:
+                                                    return
+                                    else:
+                                        if not is_new:
+                                            if "C" in self.monitor["listeners"][collection]:
+                                                for callback in self.monitor["listeners"][collection]["C"]:
+                                                    await callback(obj, latest)
+                                                    if not self.monitor["running"]:
+                                                        return
+                                            else:
+                                                if "U" in self.monitor["listeners"][collection]:
+                                                    for callback in self.monitor["listeners"][collection]["U"]:
+                                                        await callback(obj, [previous, latest])
+                                                        if not self.monitor["running"]:
+                                                            return
                         # Call the persistence layer.
                         await self.monitor["on_block_processed"](block)
                     # Set the new start block.
