@@ -819,7 +819,7 @@ class _FlureeDbClient:
         self.pw_endpoints = set(["generate", "renew", "login"])
         self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats", "list_snapshots", "snapshot"])
 
-    def monitor_init(self, on_block_processed, start_block=None, rewind=0, use_flakes=True):
+    def monitor_init(self, on_block_processed, start_block=None, rewind=0, always_query_object=False):
         """Set the basic variables for a fluree block event monitor run
 
         Parameters
@@ -833,8 +833,9 @@ class _FlureeDbClient:
         rewind: int
                 Number of seconds to rewind from now. Currently not implemented.
 
-        use_flakes: bool
-                Boolean choosing if we want to run efficiently and return only flakes, or if we want to allow extra queries to fluree and return whole objects.
+        always_query_object: bool
+                Boolean choosing if we want to run efficiently and only query if block parsing gives ambiguous results,
+                or if we always want to use extra queries
 
         Raises
         ------
@@ -848,7 +849,7 @@ class _FlureeDbClient:
         assert isinstance(rewind, int)
         self.monitor["next"] = start_block
         self.monitor["rewind"] = rewind
-        self.monitor["use_flakes"] = use_flakes
+        self.monitor["always_query_object"] = always_query_object
         self.monitor["on_block_processed"] = on_block_processed
 
     def monitor_register_create(self, collection, callback):
@@ -916,6 +917,324 @@ class _FlureeDbClient:
         """Abort running any running monitor"""
         self.monitor["running"] = False
 
+    async def _figure_out_next_block(self):
+        """Figure out what block the user wants/needs to be the next block"""
+        if self.monitor["rewind"] != 0 and self.monitor["rewind"] is not None:
+            filt = "(> ?instant (- (now) (* 1000 " + str(self.monitor["rewind"]) + "))))"
+            rewind_block = await self.flureeql.query(
+                select=["?blockid"],
+                opts={"orderBy": ["ASC", "?instant"], "limit": 1},
+                where=[
+                    ["?block", "_block/instant", "?instant"],
+                    ["?block", "_block/number", "?blockid"],
+                    {"filter": [filt]}
+                ])
+            if rewind_block and (self.monitor["next"] is None or self.monitor["next"] < rewind_block[0][0]):
+                self.monitor["next"] = rewind_block[0][0]
+            if not rewind_block:
+                self.monitor["next"] = None
+
+    async def _build_predicates_map(self):
+        """Build a predicates map for quick lookup
+
+        Returns
+        -------
+        dict
+            dictionary mapping predicate id's to predicate names
+        """
+        predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate")
+        predicate = dict()
+        for pred in predicates:
+            predicate[pred["_id"]] = pred["name"]
+        return predicate
+
+    async def _find_start_block(self):
+        """Find the start block
+
+        Returns
+        -------
+        int
+            Number of the starting block
+
+        Raises
+        ------
+        RuntimeError
+             Raised when the very first ledger_stats issued to FlureeDB returns an error.
+        """
+        if self.monitor["next"] is None:
+            stats = await self.ledger_stats()
+            if "status" in stats and stats["status"] == 200 and "data" in stats and "block" in stats["data"]:
+                startblock = stats["data"]["block"]
+            else:
+                raise RuntimeError("Invalid initial response from ledger_stats")
+        else:
+            startblock = self.monitor["next"]
+        return startblock
+
+    async def _get_endblock(self, errorcount=0):
+        """Get what for now should be the ending block
+
+        Parameters
+        ----------
+        errorcount:  int
+                     Counter for counting succesive API failure
+        Returns
+        -------
+        int
+            The ending block number
+        int
+            An updated version of the errorcount argument
+        """
+        stats = await self.ledger_stats()
+        if "status" in stats and stats["status"] == 200 and "data" in stats and "block" in stats["data"]:
+            endblock = stats["data"]["block"]
+            return endblock, 0
+        return 0, errorcount + 1
+
+    def _get_flakeset_collection(self, flakelist):
+        """Helper function for getting the collection name from a flakes array
+
+        Parameters
+        ----------
+        flakelist :  list
+              list of flake lists
+
+        Returns
+        -------
+        str
+            Name of the collection.
+        """
+        return flakelist[0][1].split("/")[0]
+
+    def _group_block_flakes(self, block_data, predicate):
+        """Return a grouped-by object-id and predicate name patched version of a block
+
+        Parameters
+        ----------
+        block_data :  list
+              Raw block data as returned by FlureeDB
+        predicate :  dict
+              Dictionary for looking up predicate names by number
+
+        Returns
+        -------
+        dict
+            A dictionary of object id's to flake arrays.
+
+        Raises
+        ------
+        RuntimeError
+            Raised when an unknown predicate id is detected.
+        """
+        grouped = dict()
+        for flake in block_data[0]["flakes"]:
+            predno = flake[1]
+            # Patch numeric predicates to textual ones.
+            if predno in predicate:
+                flake[1] = predicate[predno]
+            else:
+                raise RuntimeError("Need a restart after new predicates are added to the database")
+            # Group the flakes together by object.
+            if not flake[0] in grouped:
+                grouped[flake[0]] = list()
+            grouped[flake[0]].append(flake)
+        return grouped
+
+    def _get_transactions_and_temp_ids(self, flakeset):
+        """Extract transactions and temp id's from a single 'tx' flakeset
+
+        Parameters
+        ----------
+        flakeset :  list
+              List of flakes belonging to a 'tx' in the current block.
+
+        Returns
+        -------
+        list
+            list of operations from this transaction
+        dict
+            map of temporary ids.
+        """
+        operations = None
+        tempids = None
+        for flake in flakeset:
+            if flake[1] == '_tx/tempids':
+                try:
+                    tid_obj = json.loads(flake[2])
+                    if isinstance(tid_obj, dict):
+                        tempids = tid_obj
+                except json.decoder.JSONDecodeError:
+                    pass
+            elif flake[1] == "_tx/tx":
+                try:
+                    tx_obj = json.loads(flake[2])
+                    if isinstance(tx_obj, dict) and "tx" in tx_obj and isinstance(tx_obj["tx"], list):
+                        operations = tx_obj["tx"]
+                except json.decoder.JSONDecodeError:
+                    pass
+        return operations, tempids
+
+    def _get_object_id_to_operation_map(self, tempids, operations):
+        """Process temp ids and operations, return an object id to operation map.
+
+        Parameters
+        ----------
+        tempids :  dict
+                  Temp-id map
+        operations :     list
+                  The url that would have been used
+
+        Returns
+        -------
+        dict
+            object id to operation map.
+        """
+        # pylint: disable=too-many-nested-blocks, too-many-branches
+        obj_tx = dict()
+        if tempids:
+            for tmp_id in tempids:
+                real_id = tempids[tmp_id]
+                counters = dict()
+                for operation in operations:
+                    if isinstance(operation, dict) and "_id" in operation:
+                        if isinstance(operation["_id"], str):
+                            if operation["_id"] == tmp_id:
+                                obj_tx[real_id] = operation
+                            if operation["_id"] not in counters:
+                                counters[operation["_id"]] = 0
+                            counters[operation["_id"]] += 1
+                            altname = operation["_id"] + "$" + str(counters[operation["_id"]])
+                            if altname == tmp_id:
+                                obj_tx[real_id] = operation
+                        elif isinstance(operation["_id"], list):
+                            if len(operation["_id"]) == 2:
+                                txid = '["' + operation["_id"][0] + '" "' + operation["_id"][1] + '"]'
+                                if txid == tmp_id:
+                                    obj_tx[real_id] = operation
+        if len(operations) == 1:
+            obj_tx[""] = operations[0]
+        for operation in operations:
+            if isinstance(operation, dict) and "_id" in operation:
+                if isinstance(operation["_id"], int):
+                    obj_tx[operation["_id"]] = operation
+        return obj_tx
+
+    async def _get_and_preprocess_block(self, blockno, predicate):
+        """Fetch a block by block number and preprocess it
+
+        Parameters
+        ----------
+        blockno :  int
+                  Number of the block that needs to be fetched
+        predicate : dict
+                  Predicate id to name map
+
+        Returns
+        -------
+        list
+            A grouped and predicate patched version of the fetched block.
+        dict
+            Object id to operation dict
+        """
+        # Fetch the new block
+        block_data = await self.block.query(block=blockno)
+        # Groub by object
+        grouped = self._group_block_flakes(block_data, predicate)
+        # Distill new ones using _tx/tempids
+        obj_tx = dict()
+        for obj in grouped:
+            transactions = None
+            tempids = None
+            collection = self._get_flakeset_collection(grouped[obj])
+            if collection == "_tx":
+                transactions, tempids = self._get_transactions_and_temp_ids(grouped[obj])
+            if transactions:
+                obj_tx = self._get_object_id_to_operation_map(tempids, transactions)
+        return grouped, obj_tx
+
+    async def _process_flakeset(self, collection, obj, obj_tx, blockno):
+        """Process temp ids and operations, return an object id to operation map.
+
+        Parameters
+        ----------
+        collection :  str
+                  name of the collection the object for this flakeset refers to
+        obj :     list
+                  The flakelist
+        obj_tx :  dict
+                  Dictionary mapping from object id to operation object.
+        blockno : int
+                  Block number of the block currently being processed.
+
+        """
+        # pylint: disable=too-many-branches,too-many-statements
+        operation = None
+        action = None
+        previous = None
+        latest = None
+        if obj[0][0] in obj_tx:
+            operation = obj_tx[obj[0][0]]
+        elif "" in obj_tx:
+            operation = obj_tx[""]
+        has_true = False
+        has_false = False
+        for flake in obj:
+            if flake[4]:
+                has_true = True
+            else:
+                has_false = True
+        if self.monitor["always_query_object"]:
+            previous = await self.flureeql.query(select=["*"], ffrom=obj[0][0], block=blockno-1)
+            if previous:
+                previous = previous[0]
+                action = "update"
+            else:
+                previous = None
+            latest = await self.flureeql.query(select=["*"], ffrom=obj[0][0], block=blockno)
+            if latest:
+                latest = latest[0]
+            else:
+                latest = None
+            if previous is None:
+                action = "insert"
+            elif latest is None:
+                action = "delete"
+            else:
+                action = "update"
+        if operation and "_action" in operation and operation["_action"] != "upsert":
+            action = operation["_action"]
+        if action is None and has_true and has_false:
+            action = "update"
+        if action is None and operation and "_id" in operation and isinstance(operation["_id"], str):
+            action = "insert"
+        if action is None and operation and has_false and not has_true:
+            action = "delete"
+        if action is None and has_true and not has_false:
+            previous = await self.flureeql.query(select=["*"], ffrom=obj[0][0], block=blockno-1)
+            if previous:
+                previous = previous[0]
+                action = "update"
+            else:
+                previous = None
+                action = "insert"
+        if action is None:
+            latest = await self.flureeql.query(select=["*"], ffrom=obj[0][0], block=blockno)
+            if latest:
+                latest = latest[0]
+                action = "update"
+            else:
+                latest = None
+                action = "delete"
+        if action == "insert" and "C" in self.monitor["listeners"][collection]:
+            for callback in self.monitor["listeners"][collection]["C"]:
+                await callback(obj_id=obj[0][0], flakes=obj, new_obj=latest, operation=operation)
+        elif action == "update" and "U" in self.monitor["listeners"][collection]:
+            for callback in self.monitor["listeners"][collection]["U"]:
+                await callback(obj_id=obj[0][0], flakes=obj, old_obj=previous, new_obj=latest, operation=operation)
+        elif action == "delete" and "D" in self.monitor["listeners"][collection]:
+            for callback in self.monitor["listeners"][collection]["D"]:
+                await callback(obj_id=obj[0][0], flakes=obj, old_obj=previous, operation=operation)
+
     async def monitor_untill_stopped(self):
         """Run the block event monitor untill stopped
 
@@ -928,45 +1247,22 @@ class _FlureeDbClient:
             Raised either when there are no listeners set, or if there are too many errors.
 
         """
-        # TODO: fix these when we look at getting rid of the extra queries.
-        # pylint: disable = too-many-nested-blocks, too-many-locals, too-many-return-statements, too-many-branches, too-many-statements
-        # Some basic asserts
+        # pylint: disable=too-many-nested-blocks, too-many-branches
         if not bool(self.monitor["listeners"]):
             raise RuntimeError("Can't start monitor with zero registered listeners")
-        if self.monitor["rewind"] != 0:
-            filt = "(> ?instant (- (now) (* 1000 " + str(self.monitor["rewind"]) + "))))"
-            rewind_block = await self.flureeql.query(
-                select=["?blockid"],
-                opts={"orderBy": ["ASC", "?instant"], "limit": 1},
-                where=[
-                    ["?block", "_block/instant", "?instant"],
-                    ["?block", "_block/number", "?blockid"],
-                    {"filter": [filt]}
-                ])
-            if rewind_block and  (self.monitor["next"] is None or  self.monitor["next"] < rewind_block[0][0]):
-                self.monitor["next"] = rewind_block[0][0]
-            if not rewind_block:
-                self.monitor["next"] = None
         # Set running to true. We shall abort when it is set to false.
         self.monitor["running"] = True
-        # First make a dict from the _predicate collection.
-        predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate")
+        await self._figure_out_next_block()
         if not self.monitor["running"]:
             return
-        predicate = dict()
-        for pred in predicates:
-            predicate[pred["_id"]] = pred["name"]
+        # First make a dict from the _predicate collection.
+        predicate = await self._build_predicates_map()
+        if not self.monitor["running"]:
+            return
         noblocks = True
-        if self.monitor["next"] is None:
-            stats = await self.ledger_stats()
-            if not self.monitor["running"]:
-                return
-            if "status" in stats and stats["status"] == 200 and "data" in stats and "block" in stats["data"]:
-                startblock = stats["data"]["block"]
-            else:
-                raise RuntimeError("Invalid initial response from ledger_stats")
-        else:
-            startblock = self.monitor["next"]
+        startblock = await self._find_start_block()
+        if not self.monitor["running"]:
+            return
         stats_error_count = 0
         while self.monitor["running"]:
             # If we had zero blocks to process the last time around, wait a full second before polling again if there are
@@ -976,116 +1272,22 @@ class _FlureeDbClient:
                 if not self.monitor["running"]:
                     return
             noblocks = True
-            # Get the latest ledger stats.
-            stats = await self.ledger_stats()
+            endblock, stats_error_count = await self._get_endblock()
             if not self.monitor["running"]:
                 return
-            if "status" in stats and stats["status"] == 200 and "data" in stats and "block" in stats["data"]:
-                stats_error_count = 0
-                endblock = stats["data"]["block"]
+            if endblock:
                 if endblock > startblock:
                     noblocks = False
                     for block in range(startblock + 1, endblock + 1):
-                        grouped = dict()
-                        # Fetch the new block
-                        block_data = await self.block.query(block=block)
-                        if not self.monitor["running"]:
-                            return
-                        # Itterate all flakes.
-                        for flake in block_data[0]["flakes"]:
-                            predno = flake[1]
-                            # Patch numeric predicates to textual ones.
-                            if predno in predicate:
-                                flake[1] = predicate[predno]
-                            else:
-                                raise RuntimeError("Need a restart after new predicates are added to the database")
-                            # Group the flakes together by object.
-                            if not flake[0] in grouped:
-                                grouped[flake[0]] = list()
-                            grouped[flake[0]].append(flake)
-                        # Distill new ones using _tx/tempids
-                        new_objects = set()
-                        for obj in grouped:
-                            for flake in grouped[obj]:
-                                if flake[1] == '_tx/tempids':
-                                    newdict = json.loads(flake[2]);
-                                    for key in newdict:
-                                        new_objects.add(newdict[key]);
+                        grouped, obj_tx = await self._get_and_preprocess_block(block, predicate)
                         # Process per object.
                         for obj in grouped:
-                            if obj in new_objects:
-                                is_new = True
-                            else:
-                                is_new = False
-                            has_true = False
-                            for flake in grouped[obj]:
-                                if flake[4]:
-                                    has_true = True
-                            # Ectract the collection name
-                            collection = grouped[obj][0][1].split("/")[0]
-                            # Trigger on collection if in map
-                            if collection in self.monitor["listeners"]:
-                                if self.monitor["use_flakes"]:
-                                    if is_new and has_true:
-                                        if "C" in self.monitor["listeners"][collection]:
-                                            for callback in self.monitor["listeners"][collection]["C"]:
-                                                await callback(obj, grouped[obj])
-                                                if not self.monitor["running"]:
-                                                    return
-                                    else:
-                                        if not is_new:
-                                            if "U" in self.monitor["listeners"][collection]:
-                                                for callback in self.monitor["listeners"][collection]["U"]:
-                                                    await callback(obj, grouped[obj])
-                                                    if not self.monitor["running"]:
-                                                        return
-
-                                        else:
-                                            if "D" in self.monitor["listeners"][collection]:
-                                                for callback in self.monitor["listeners"][collection]["D"]:
-                                                    await callback(obj, grouped[obj])
-                                                    if not self.monitor["running"]:
-                                                        return
-                                else:
-                                    if has_true:
-                                        latest = await self.flureeql.query(select=["*"], ffrom=obj, block=block)
-                                        if not self.monitor["running"]:
-                                            return
-                                        if latest:
-                                            latest = latest[0]
-                                        else:
-                                            latest = None
-                                    else:
-                                        latesat = None
-                                    if is_new and has_true:
-                                        previous = None;
-                                    else:
-                                        previous = await self.flureeql.query(select=["*"], ffrom=obj, block=block-1)
-                                        if not self.monitor["running"]:
-                                            return
-                                        if previous:
-                                            previous = previous[0]
-                                        else:
-                                            previous = None
-                                    if is_new and has_true:
-                                        if "D" in self.monitor["listeners"][collection]:
-                                            for callback in self.monitor["listeners"][collection]["D"]:
-                                                await callback(obj, previous)
-                                                if not self.monitor["running"]:
-                                                    return
-                                    else:
-                                        if not is_new:
-                                            if "C" in self.monitor["listeners"][collection]:
-                                                for callback in self.monitor["listeners"][collection]["C"]:
-                                                    await callback(obj, latest)
-                                                    if not self.monitor["running"]:
-                                                        return
-                                            else:
-                                                if "U" in self.monitor["listeners"][collection]:
-                                                    for callback in self.monitor["listeners"][collection]["U"]:
-                                                        await callback(obj, [previous, latest])
-                                                        if not self.monitor["running"]:
-                                                            return
+                            if obj > 0:
+                                collection = self._get_flakeset_collection(grouped[obj])
+                                if collection in self.monitor["listeners"]:
+                                    await self._process_flakeset(collection, grouped[obj], obj_tx, block)
+                                    if not self.monitor["running"]:
+                                        return
                         # Call the persistence layer.
                         await self.monitor["on_block_processed"](block)
                     # Set the new start block.

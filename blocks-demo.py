@@ -5,14 +5,17 @@ import aioflureedb
 async def blockmon(block):
     print("BLOCK DONE: ", block)
 
-async def new_user(obj, flakes):
-    print("NEW ROLE:", obj, flakes)
+async def new_user(obj_id, flakes, new_obj, operation):
+    print("NEW ROLE:", obj_id, flakes)
+    print("        :", new_obj, operation)
 
-async def dropped_user(obj, flakes):
-    print("DROPPED ROLE:", obj, flakes)
+async def dropped_user(obj_id, flakes, old_obj, operation):
+    print("DROPPED ROLE:", obj_id, flakes)
+    print("        :", old_obj, operation)
 
-async def updated_user(obj, flakes):
-    print("UPDATED ROLE:", obj, flakes)
+async def updated_user(obj_id, flakes, old_obj, new_obj, operation):
+    print("UPDATED ROLE:", obj_id, flakes)
+    print("        :", old_obj, new_obj, operation)
 
 async def blocks_demo():
     print("Connecting to FlureeDB")
@@ -24,7 +27,7 @@ async def blocks_demo():
     print("Opening database")
     async with db() as database:
         print("Initializing monitor")
-        database.monitor_init(blockmon, start_block=None,rewind=1000000, use_flakes=True)
+        database.monitor_init(blockmon, start_block=None,rewind=1000000)
         database.monitor_register_create("_role", new_user)
         database.monitor_register_delete("_role", dropped_user)
         database.monitor_register_update("_role", updated_user)
