@@ -286,9 +286,129 @@ Here is an example of listing snapshots belonging to a ledger:
    ...
 ```
 
-### More comming up.
+## Composite API's
 
-The above is the API for the 0.1 release of aioflureedb. Many API endpoints arent supported yet and none of them has currently been prioritized. Please [submit an issue](https://github.com/pibara/aioflureedb/issues) to help with prioritazion. Pull requests are also very much welcomed. Please make sure your patches don't break either *pylint* with the [provided config](https://github.com/pibara/aioflureedb/blob/master/.pylintrc) or *pycodestyle* using the *--max-line-length=128* option.
+### Event monitoring
+
+Aioflureedb from version 0.2.0 has a convenient composite Event-monitoring API. This API allows the registration of callbacks for events on specific collections. Note that the four fluree eoperations insert/update/upsert/delete map to just three events: create/delete/update. The event monitoring is centered around a block API querying loop.
+
+#### setting up the monitor
+
+Before we can register event callbacks, we need to specify at what block to start monitoring and set up a block monitor first. The block monitor is meant to be used for a persistence layer, so we
+can start monitoring where we left off the last time our program ran.
+
+```python
+async def write_blockno_to_file(block):
+    with open("lastblock.json", "w") as output:
+        json.dump([block], output)
+
+   ...
+   with open("lastblock.json") as input:
+       block = json.load(input)[0]
+   database.monitor_init(write_blockno_to_file, start_block=block)
+   
+```
+
+Alternatively, we can ommit the persitence layer and just monitor from now on. We do this by invoking monitor\_init with a do-nothing lambda.
+
+```python
+    database.monitor_init(lambda *args: None)
+```
+
+Instead of starting exactly from now, we can start monitoring at some set time in the past using the rewind argument:
+
+```python
+    ...
+    # start monitoring one hour in the past.
+    database.monitor_init(lambda *args: None, rewind=3600)
+```
+
+We can combine start\_block with rewind. When we do, we will start at the designated block, unless that block is older than the rewind time. This should be helpfull if the persistent setup
+has been ofline for a long time and we don't want to process hours or days of events. 
+
+```python
+    ...
+    with open("lastblock.json") as input:
+       block = json.load(input)[0]
+    database.monitor_init(write_blockno_to_file, start_block=block, rewind=3600)
+```
+
+Finaly there is one argument to monitor\_init we haven't discusset yet, *always_query_object*. This is a boolean that defaults to false. Normally aioflureedb will try to minimize querying fluree's query API during monitoring. By setting this value to *true*, this stratigy will be disabled and querying the query API will be done liberally. The reason to choose this is if the callbacks need the before or after object data. 
+
+```python
+   ...
+   database.monitor_init(lambda *args: None, always_query_object=True)
+``` 
+
+#### setting callbacks
+
+Once monitoring has its basic setup, we can register event callbacks. Here is a sample of a create callback. The *monitor_register_create* method tahes two arguments,
+the collection name to monitor for create events and the callback function.
+
+```python
+async def new_user(obj_id, flakes, new_obj, operation):
+   pass
+
+   ...
+   database.monitor_register_create("_user", new_user)
+```
+
+The callback has four arguments:
+
+* obj\_id: The numeric id of the created object
+* flakes: A list of flakes that make up the create operation
+* new\_obj: If available (see , the newly created object.
+* operation: If available, the create operation from the transacrion that created the object.
+
+Note that in most cases *new\_obj* will be set to None *unless* the *always_query_object* argument of *monitor_init* was set to True.
+
+In a similar way we can set a callback on deletes:
+
+```python
+async def dropped_user(obj_id, flakes, old_obj, operation):
+   pass
+
+   ...
+   database.monitor_register_delete("_user", dropped_user)
+```
+
+Basically this works the same as for* monitor_register_create*, only, instead of *new_obj* we have an *old_obj* containing the object just prior to deleteion(if available). 
+If *new_obj* is required by *ANY* callback, the *always_query_object* argument of *monitor_init*must be set to True.
+
+Finaly we can register a callback for updates.
+
+```python
+async def updated_user(obj_id, flakes, old_obj, new_obj, operation):
+    pass
+
+   ...
+   database.monitor_register_update("_user", updated_user)
+```
+
+Note that the callback function has both an *old_obj* and a *new_obj* argument, containing the object prior to and after the update (if available). If *new_obj* or *old_obj* is required by *ANY* callback, the *always_query_object* argument of *monitor_init*must be set to True.
+
+#### running the monitor
+
+Once all callbacks are registered, the async method *monitor_untill_stopped* can be invoked. This method will start the monitor. If the monitor is the main function of your program, you can simply await this method.
+
+```python
+   ...
+   await database.monitor_untill_stopped()
+```
+
+If monitoring needs to be stopped, the method *monitor_close* can be used to stop it at the latest at the end of the processing of the currently being processed block, or after the current one second sleep.
+
+```
+   ...
+    database.monitor_close()
+```
+
+Note that if your program wants to do more than just monitoring, you may want to send of *monitor_untill_stopped* into its own task. Discussion of this falls outside of the scope of this document.
+
+
+## More comming up.
+
+The above is the API for the 0.2 release of aioflureedb. Many API endpoints arent supported yet and none of them has currently been prioritized. Please [submit an issue](https://github.com/pibara/aioflureedb/issues) to help with prioritazion. Pull requests are also very much welcomed. Please make sure your patches don't break either *pylint* with the [provided config](https://github.com/pibara/aioflureedb/blob/master/.pylintrc) or *pycodestyle* using the *--max-line-length=128* option.
 
 #### TODO Utils
 
