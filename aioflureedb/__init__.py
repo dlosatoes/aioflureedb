@@ -1110,6 +1110,28 @@ class _FlureeDbClient:
                 instance = flake[2]
         return instance
 
+    async def _get_block_instant_by_blockno(self, block):
+        """Get the instant timestamp for a given block number
+
+        Parameters
+        ----------
+        block: int
+            Block number
+
+        Returns
+        -------
+        int
+            Time instance value for this block
+        """
+        result = await self.flureeql.query(
+                    select=["?instant"],
+                    where=[["?block", "_block/instant", "?instant"],
+                        ["?block", "_block/number", block]]
+                    )
+        if result:
+            return result[0][0]
+        return None
+
     def _get_object_id_to_operation_map(self, tempids, operations):
         """Process temp ids and operations, return an object id to operation map.
 
@@ -1317,7 +1339,7 @@ class _FlureeDbClient:
 
         """
         # pylint: disable=too-many-nested-blocks, too-many-branches
-        if not bool(self.monitor["listeners"]):
+        if (not bool(self.monitor["listeners"])) and (not bool(self.monitor["instant_monitors"])):
             raise RuntimeError("Can't start monitor with zero registered listeners")
         # Set running to true. We shall abort when it is set to false.
         self.monitor["running"] = True
@@ -1330,6 +1352,10 @@ class _FlureeDbClient:
             return
         noblocks = True
         startblock = await self._find_start_block()
+        if not self.monitor["running"]:
+            return
+        if startblock > 1 and self.monitor["instant_monitors"]:
+            self.monitor["lastblock_instant"] = await self._get_block_instant_by_blockno(startblock-1)
         if not self.monitor["running"]:
             return
         stats_error_count = 0

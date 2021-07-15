@@ -342,7 +342,7 @@ Finaly there is one argument to monitor\_init we haven't discusset yet, *always_
 
 #### setting callbacks
 
-Once monitoring has its basic setup, we can register event callbacks. Here is a sample of a create callback. The *monitor_register_create* method tahes two arguments,
+Once monitoring has its basic setup, we can register event callbacks. Here is a sample of a create callback. The *monitor_register_create* method takes two arguments,
 the collection name to monitor for create events and the callback function.
 
 ```python
@@ -375,7 +375,7 @@ async def dropped_user(obj_id, flakes, old_obj, operation):
 Basically this works the same as for* monitor_register_create*, only, instead of *new_obj* we have an *old_obj* containing the object just prior to deleteion(if available). 
 If *new_obj* is required by *ANY* callback, the *always_query_object* argument of *monitor_init*must be set to True.
 
-Finaly we can register a callback for updates.
+We can register a callback for updates.
 
 ```python
 async def updated_user(obj_id, flakes, old_obj, new_obj, operation):
@@ -386,6 +386,23 @@ async def updated_user(obj_id, flakes, old_obj, new_obj, operation):
 ```
 
 Note that the callback function has both an *old_obj* and a *new_obj* argument, containing the object prior to and after the update (if available). If *new_obj* or *old_obj* is required by *ANY* callback, the *always_query_object* argument of *monitor_init*must be set to True.
+
+Finaly, we can register callbacks for time events on predicates of the *instant* type.
+
+```python
+async def journal_entry(obj):
+    pass
+
+   ...
+   database.monitor_instant("journal/timestamp", journal_entry, 0)
+```
+Here the callback takes only one argument. This argument will get filled by the object repesentation of the object with the matching instant predicate.
+
+The *monitor_instant* method takes three arguments: The instant predicate to monitor, the callback, and an optional offset in seconds. 
+
+**NOTE:** Please note that in the current implementation there may be a delay of up to a minute before an instant monitor gets triggered. This may get fixed in the future.
+
+**NOTE:** Please note that as a restart, when using the persistence hook, currently implies starting at the last block with respect to time might incept a replay of all events since that block. We may at a later point in time ad an instant info persistant callback and a matching constructor argument as to solve this potential replay problem.
 
 #### running the monitor
 

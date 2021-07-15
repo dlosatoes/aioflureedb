@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import json
 import aioflureedb
 
 async def blockmon(block):
@@ -18,7 +19,7 @@ async def updated_user(obj_id, flakes, old_obj, new_obj, operation):
     print("        :", old_obj, new_obj, operation)
 
 async def journal_entry(obj):
-    print(obj)
+    print(json.dumps(obj, indent=4, sort_keys=True))
 
 async def blocks_demo():
     print("Connecting to FlureeDB")
@@ -30,7 +31,7 @@ async def blocks_demo():
     print("Opening database")
     async with db() as database:
         print("Initializing monitor")
-        database.monitor_init(blockmon, start_block=None,rewind=1000000)
+        database.monitor_init(blockmon, start_block=2,rewind=1000000)
         database.monitor_register_create("_role", new_user)
         database.monitor_register_delete("_role", dropped_user)
         database.monitor_register_update("_role", updated_user)
