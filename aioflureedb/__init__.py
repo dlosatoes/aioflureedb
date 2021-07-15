@@ -1551,7 +1551,7 @@ class _FlureeDbClient:
 
         class CommandEndpoint:
             """Endpoint for FlureeQL command"""
-            def __init__(self, api_endpoint, client):
+            def __init__(self, api_endpoint, client, ssl_verify_disabled=False):
                 """Constructor
 
                 Parameters
@@ -1560,9 +1560,11 @@ class _FlureeDbClient:
                                Name of the API endpoint
                 client: object
                         The wrapping _FlureeDbClient
+                ssl_verify_disabled: bool
+                        When using https, don't validata ssl certs.
                 """
                 self.client = client
-                self.stringendpoint = _StringEndpoint(api_endpoint, client)
+                self.stringendpoint = _StringEndpoint(api_endpoint, client, ssl_verify_disabled)
 
             async def transaction(self, transaction_obj, deps=None, do_await=True):
                 """Transact with list of python dicts that should get serialized to JSON,
@@ -1599,15 +1601,17 @@ class _FlureeDbClient:
 
         class LedgerStatsEndpoint:
             """Endpoint for ledger_stats"""
-            def __init__(self, client):
+            def __init__(self, client, ssl_verify_disabled=False):
                 """Constructor
 
                 Parameters
                 ----------
                 client: object
                         The wrapping _FlureeDbClient
+                ssl_verify_disabled: bool
+                        When using https, don't validata ssl certs.
                 """
-                self.stringendpoint = _StringEndpoint('ledger_stats', client)
+                self.stringendpoint = _StringEndpoint('ledger_stats', client, ssl_verify_disabled)
 
             async def __call__(self):
                 """Send request to ledger-stats endpoint and retrieve result
@@ -1627,7 +1631,7 @@ class _FlureeDbClient:
         if api_endpoint in ["command"]:
             if self.signer is None:
                 raise FlureeKeyRequired("Command endpoint not supported in open-API mode. privkey required!")
-            return CommandEndpoint(api_endpoint, self)
+            return CommandEndpoint(api_endpoint, self, self.ssl_verify_disabled)
         if api_endpoint == 'ledger_stats':
-            return LedgerStatsEndpoint(self)
+            return LedgerStatsEndpoint(self, self.ssl_verify_disabled)
         return FlureeQlEndpoint(api_endpoint, self, self.ssl_verify_disabled)
