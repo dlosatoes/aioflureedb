@@ -3,8 +3,8 @@ import asyncio
 import json
 import aioflureedb
 
-async def blockmon(block):
-    print("BLOCK DONE: ", block)
+async def blockmon(block, instant):
+    print("BLOCK DONE: ", block, instant)
 
 async def new_user(obj_id, flakes, new_obj, operation):
     print("NEW ROLE:", obj_id, flakes)

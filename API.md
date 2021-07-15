@@ -298,14 +298,14 @@ Before we can register event callbacks, we need to specify at what block to star
 can start monitoring where we left off the last time our program ran.
 
 ```python
-async def write_blockno_to_file(block):
+async def write_blockno_to_file(block, instant):
     with open("lastblock.json", "w") as output:
         json.dump([block], output)
 
    ...
    with open("lastblock.json") as input:
        block = json.load(input)[0]
-   database.monitor_init(write_blockno_to_file, start_block=block)
+   database.monitor_init(write_blockno_to_file, start_block=block, start_instant=instant)
    
 ```
 
@@ -330,7 +330,7 @@ has been ofline for a long time and we don't want to process hours or days of ev
     ...
     with open("lastblock.json") as input:
        block = json.load(input)[0]
-    database.monitor_init(write_blockno_to_file, start_block=block, rewind=3600)
+    database.monitor_init(write_blockno_to_file, start_block=block, start_instant=instant, rewind=3600)
 ```
 
 Finaly there is one argument to monitor\_init we haven't discusset yet, *always_query_object*. This is a boolean that defaults to false. Normally aioflureedb will try to minimize querying fluree's query API during monitoring. By setting this value to *true*, this stratigy will be disabled and querying the query API will be done liberally. The reason to choose this is if the callbacks need the before or after object data. 
@@ -402,7 +402,6 @@ The *monitor_instant* method takes three arguments: The instant predicate to mon
 
 **NOTE:** Please note that in the current implementation there may be a delay of up to a minute before an instant monitor gets triggered. This may get fixed in the future.
 
-**NOTE:** Please note that as a restart, when using the persistence hook, currently implies starting at the last block with respect to time might incept a replay of all events since that block. We may at a later point in time ad an instant info persistant callback and a matching constructor argument as to solve this potential replay problem.
 
 #### running the monitor
 

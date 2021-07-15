@@ -822,7 +822,7 @@ class _FlureeDbClient:
         self.pw_endpoints = set(["generate", "renew", "login"])
         self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats", "list_snapshots", "snapshot"])
 
-    def monitor_init(self, on_block_processed, start_block=None, rewind=0, always_query_object=False):
+    def monitor_init(self, on_block_processed, start_block=None, rewind=0, always_query_object=False, start_instant=None):
         """Set the basic variables for a fluree block event monitor run
 
         Parameters
@@ -840,6 +840,11 @@ class _FlureeDbClient:
                 Boolean choosing if we want to run efficiently and only query if block parsing gives ambiguous results,
                 or if we always want to use extra queries
 
+        start_instant: int
+                If (and only if) instant monitor callbacks are used, this parameter should be provided to avoid
+                large replays of inactive chain instant events that occured after the last block. Use the instant
+                as provided py the persistence callback in the previous run.
+
         Raises
         ------
         NotImplementedError
@@ -854,6 +859,7 @@ class _FlureeDbClient:
         self.monitor["rewind"] = rewind
         self.monitor["always_query_object"] = always_query_object
         self.monitor["on_block_processed"] = on_block_processed
+        self.monitor["lastblock_instant"] = start_instant
 
     def monitor_register_create(self, collection, callback):
         """Add a callback for create events on a collection
@@ -1124,10 +1130,12 @@ class _FlureeDbClient:
             Time instance value for this block
         """
         result = await self.flureeql.query(
-                    select=["?instant"],
-                    where=[["?block", "_block/instant", "?instant"],
-                        ["?block", "_block/number", block]]
-                    )
+            select=["?instant"],
+            where=[
+                ["?block", "_block/instant", "?instant"],
+                ["?block", "_block/number", block]
+            ]
+        )
         if result:
             return result[0][0]
         return None
@@ -1198,8 +1206,8 @@ class _FlureeDbClient:
     async def _process_instance(self, instant, fromblock):
         minute = 60000
         timeout = 1*minute
-        if (fromblock or 
-                self.monitor["lastblock_instant"] and 
+        if (fromblock or
+                self.monitor["lastblock_instant"] and
                 self.monitor["lastblock_instant"] + timeout < instant):
             if self.monitor["lastblock_instant"]:
                 await self._do_instant_monitor(self.monitor["lastblock_instant"], instant)
@@ -1231,17 +1239,17 @@ class _FlureeDbClient:
         for obj in grouped:
             transactions = None
             tempids = None
-            instance = None
+            instant = None
             collection = self._get_flakeset_collection(grouped[obj])
             if collection == "_tx":
                 transactions, tempids = self._get_transactions_and_temp_ids(grouped[obj])
             if collection == "_block":
-                instance = self._get_block_instant(grouped[obj])
+                instant = self._get_block_instant(grouped[obj])
             if transactions:
                 obj_tx = self._get_object_id_to_operation_map(tempids, transactions)
-            if instance:
-                await self._process_instance(instance, True)
-        return grouped, obj_tx
+            if instant:
+                await self._process_instance(instant, True)
+        return grouped, obj_tx, instant
 
     async def _process_flakeset(self, collection, obj, obj_tx, blockno):
         """Process temp ids and operations, return an object id to operation map.
@@ -1338,7 +1346,7 @@ class _FlureeDbClient:
             Raised either when there are no listeners set, or if there are too many errors.
 
         """
-        # pylint: disable=too-many-nested-blocks, too-many-branches
+        # pylint: disable=too-many-nested-blocks, too-many-branches, too-many-return-statements
         if (not bool(self.monitor["listeners"])) and (not bool(self.monitor["instant_monitors"])):
             raise RuntimeError("Can't start monitor with zero registered listeners")
         # Set running to true. We shall abort when it is set to false.
@@ -1354,7 +1362,7 @@ class _FlureeDbClient:
         startblock = await self._find_start_block()
         if not self.monitor["running"]:
             return
-        if startblock > 1 and self.monitor["instant_monitors"]:
+        if startblock > 1 and self.monitor["instant_monitors"] and self.monitor["lastblock_instant"] is None:
             self.monitor["lastblock_instant"] = await self._get_block_instant_by_blockno(startblock-1)
         if not self.monitor["running"]:
             return
@@ -1377,7 +1385,7 @@ class _FlureeDbClient:
                 if endblock > startblock:
                     noblocks = False
                     for block in range(startblock + 1, endblock + 1):
-                        grouped, obj_tx = await self._get_and_preprocess_block(block, predicate)
+                        grouped, obj_tx, instant = await self._get_and_preprocess_block(block, predicate)
                         # Process per object.
                         for obj in grouped:
                             if obj > 0:
@@ -1387,7 +1395,7 @@ class _FlureeDbClient:
                                     if not self.monitor["running"]:
                                         return
                         # Call the persistence layer.
-                        await self.monitor["on_block_processed"](block)
+                        await self.monitor["on_block_processed"](block, instant)
                     # Set the new start block.
                     startblock = block
             else:
