@@ -6,7 +6,7 @@ here = path.abspath(path.dirname(__file__))
 
 setup(
     name='aioflureedb',
-    version='0.2.1',
+    version='0.2.2',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,

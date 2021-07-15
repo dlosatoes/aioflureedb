@@ -6,6 +6,7 @@
 import sys
 import asyncio
 import json
+import time
 import aiohttp
 from aioflureedb.signing import DbSigner
 
@@ -787,6 +788,8 @@ class _FlureeDbClient:
         self.monitor["rewind"] = 0
         self.monitor["on_block_processed"] = None
         self.monitor["predicate_map"] = dict()
+        self.monitor["lastblock_instant"] = None
+        self.monitor["instant_monitors"] = list()
         if https and not ssl_verify:
             self.ssl_verify_disabled = True
         self.signer = None
@@ -912,6 +915,20 @@ class _FlureeDbClient:
         if "U" not in self.monitor["listeners"][collection]:
             self.monitor["listeners"][collection]["U"] = set()
         self.monitor["listeners"][collection]["U"].add(callback)
+
+    def monitor_instant(self, predicate, callback, offset=0):
+        """Ass a callback for the passing of time on an instant predicate
+
+        Parameters
+        ----------
+        predicate: str
+                Name of the instant predicate to monitor
+        callback: callable
+                Callback to invoke when the time (plus offset) passes the monitored instant
+        offset: int
+                If specified, number of seconds from monitored instant value to trigger on
+        """
+        self.monitor["instant_monitors"].append([predicate, offset*1000, callback])
 
     def monitor_close(self):
         """Abort running any running monitor"""
@@ -1074,6 +1091,25 @@ class _FlureeDbClient:
                     pass
         return operations, tempids
 
+    def _get_block_instant(self, flakeset):
+        """Extract transactions and temp id's from a single 'tx' flakeset
+
+        Parameters
+        ----------
+        flakeset :  list
+              List of flakes belonging to a 'tx' in the current block.
+
+        Returns
+        -------
+        int
+            Time instance value for this block
+        """
+        instance = None
+        for flake in flakeset:
+            if flake[1] == '_block/instant':
+                instance = flake[2]
+        return instance
+
     def _get_object_id_to_operation_map(self, tempids, operations):
         """Process temp ids and operations, return an object id to operation map.
 
@@ -1119,6 +1155,34 @@ class _FlureeDbClient:
                     obj_tx[operation["_id"]] = operation
         return obj_tx
 
+    async def _do_instant_monitor(self, oldinstant, newinstant):
+        for monitor in self.monitor["instant_monitors"]:
+            predicate = monitor[0]
+            offset = monitor[1]
+            callback = monitor[2]
+            windowstart = oldinstant - offset
+            windowstop = newinstant - offset
+            filt = "(and (> ?instant " + str(windowstart) + ") (<= ?instant " + str(windowstop) + "))"
+            eventlist = await self.flureeql.query(
+                select=[{"?whatever": ["*"]}],
+                opts={"orderBy": ["ASC", "?instant"]},
+                where=[
+                    ["?whatever", predicate, "?instant"],
+                    {"filter": [filt]}
+                ])
+            for event in eventlist:
+                await callback(event)
+
+    async def _process_instance(self, instant, fromblock):
+        minute = 60000
+        timeout = 1*minute
+        if (fromblock or 
+                self.monitor["lastblock_instant"] and 
+                self.monitor["lastblock_instant"] + timeout < instant):
+            if self.monitor["lastblock_instant"]:
+                await self._do_instant_monitor(self.monitor["lastblock_instant"], instant)
+            self.monitor["lastblock_instant"] = instant
+
     async def _get_and_preprocess_block(self, blockno, predicate):
         """Fetch a block by block number and preprocess it
 
@@ -1145,11 +1209,16 @@ class _FlureeDbClient:
         for obj in grouped:
             transactions = None
             tempids = None
+            instance = None
             collection = self._get_flakeset_collection(grouped[obj])
             if collection == "_tx":
                 transactions, tempids = self._get_transactions_and_temp_ids(grouped[obj])
+            if collection == "_block":
+                instance = self._get_block_instant(grouped[obj])
             if transactions:
                 obj_tx = self._get_object_id_to_operation_map(tempids, transactions)
+            if instance:
+                await self._process_instance(instance, True)
         return grouped, obj_tx
 
     async def _process_flakeset(self, collection, obj, obj_tx, blockno):
@@ -1269,6 +1338,9 @@ class _FlureeDbClient:
             #  new blocks.
             if noblocks:
                 await asyncio.sleep(1)
+                if not self.monitor["running"]:
+                    return
+                await self._process_instance(int(time.time()*1000), False)
                 if not self.monitor["running"]:
                     return
             noblocks = True

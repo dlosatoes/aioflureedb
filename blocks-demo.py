@@ -17,6 +17,9 @@ async def updated_user(obj_id, flakes, old_obj, new_obj, operation):
     print("UPDATED ROLE:", obj_id, flakes)
     print("        :", old_obj, new_obj, operation)
 
+async def journal_entry(obj):
+    print(obj)
+
 async def blocks_demo():
     print("Connecting to FlureeDB")
     async with aioflureedb.FlureeClient(port=8090) as flureeclient:
@@ -31,6 +34,7 @@ async def blocks_demo():
         database.monitor_register_create("_role", new_user)
         database.monitor_register_delete("_role", dropped_user)
         database.monitor_register_update("_role", updated_user)
+        database.monitor_instant("journal/timestamp", journal_entry, 0)
         print("Running Monitor")
         await database.monitor_untill_stopped()
 
