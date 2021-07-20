@@ -79,6 +79,19 @@ class FlureeTransactionFailure(FlureeException):
         FlureeException.__init__(self, message)
 
 
+class FlureeUnexpectedPredicateNumber(FlureeException):
+    """Fluree transaction failed"""
+    def __init__(self, message):
+        """Constructor
+
+        Parameters
+        ----------
+        message : str
+               Error message
+        """
+        FlureeException.__init__(self, message)
+
+
 def _dryrun(method, url, headers, body):
     """Helper function for debugging the library
 
@@ -788,6 +801,7 @@ class _FlureeDbClient:
         self.monitor["rewind"] = 0
         self.monitor["on_block_processed"] = None
         self.monitor["predicate_map"] = dict()
+        self.monitor["predicate_map_block"] = 0
         self.monitor["lastblock_instant"] = None
         self.monitor["instant_monitors"] = list()
         if https and not ssl_verify:
@@ -957,7 +971,7 @@ class _FlureeDbClient:
             if not rewind_block:
                 self.monitor["next"] = None
 
-    async def _build_predicates_map(self):
+    async def _build_predicates_map(self, block=None):
         """Build a predicates map for quick lookup
 
         Returns
@@ -965,11 +979,19 @@ class _FlureeDbClient:
         dict
             dictionary mapping predicate id's to predicate names
         """
-        predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate")
-        predicate = dict()
-        for pred in predicates:
-            predicate[pred["_id"]] = pred["name"]
-        return predicate
+        if block is not None:
+            if self.monitor["predicate_map_block"] != block:
+                predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate", block=block)
+                self.monitor["predicate_map_block"] = block
+            else:
+                predicates = None
+        else:
+            predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate")
+        if predicates is not None:
+            predicate = dict()
+            for pred in predicates:
+                predicate[pred["_id"]] = pred["name"]
+            self.monitor["predicate_map"] = predicate
 
     async def _find_start_block(self):
         """Find the start block
@@ -1029,7 +1051,7 @@ class _FlureeDbClient:
         """
         return flakelist[0][1].split("/")[0]
 
-    def _group_block_flakes(self, block_data, predicate):
+    async def _group_block_flakes(self, block_data, blockno):
         """Return a grouped-by object-id and predicate name patched version of a block
 
         Parameters
@@ -1038,6 +1060,8 @@ class _FlureeDbClient:
               Raw block data as returned by FlureeDB
         predicate :  dict
               Dictionary for looking up predicate names by number
+        blockno : int
+              Number of the block currently being processed.
 
         Returns
         -------
@@ -1046,21 +1070,27 @@ class _FlureeDbClient:
 
         Raises
         ------
-        RuntimeError
+        FlureeUnexpectedPredicateNumber
             Raised when an unknown predicate id is detected.
         """
+        has_predicate_updates = False
         grouped = dict()
         for flake in block_data[0]["flakes"]:
             predno = flake[1]
             # Patch numeric predicates to textual ones.
-            if predno in predicate:
-                flake[1] = predicate[predno]
+            if predno in self.monitor["predicate_map"]:
+                flake[1] = self.monitor["predicate_map"][predno]
             else:
-                raise RuntimeError("Need a restart after new predicates are added to the database")
+                raise FlureeUnexpectedPredicateNumber("Need a restart after new predicates are added to the database")
             # Group the flakes together by object.
             if not flake[0] in grouped:
                 grouped[flake[0]] = list()
             grouped[flake[0]].append(flake)
+        for obj in grouped:
+            if grouped[obj][0][1].split("/")[0] == "_predicate":
+                has_predicate_updates = True
+        if has_predicate_updates:
+            await self._build_predicates_map(blockno)
         return grouped
 
     def _get_transactions_and_temp_ids(self, flakeset):
@@ -1215,7 +1245,7 @@ class _FlureeDbClient:
                 await self._do_instant_monitor(self.monitor["lastblock_instant"], instant, block)
             self.monitor["lastblock_instant"] = instant
 
-    async def _get_and_preprocess_block(self, blockno, predicate):
+    async def _get_and_preprocess_block(self, blockno):
         """Fetch a block by block number and preprocess it
 
         Parameters
@@ -1235,7 +1265,11 @@ class _FlureeDbClient:
         # Fetch the new block
         block_data = await self.block.query(block=blockno)
         # Groub by object
-        grouped = self._group_block_flakes(block_data, predicate)
+        try:
+            grouped = await self._group_block_flakes(block_data, blockno)
+        except FlureeUnexpectedPredicateNumber:
+            await self._build_predicates_map(blockno)
+            grouped = await self._group_block_flakes(block_data, blockno)
         # Distill new ones using _tx/tempids
         obj_tx = dict()
         block_meta = dict()
@@ -1315,10 +1349,14 @@ class _FlureeDbClient:
         if action is None and operation and has_false and not has_true:
             action = "delete"
         if action is None and has_true and not has_false:
-            previous = await self.flureeql.query(select=["*"], ffrom=obj[0][0], block=blockno-1)
-            if previous:
-                previous = previous[0]
-                action = "update"
+            if blockno > 1:
+                previous = await self.flureeql.query(select=["*"], ffrom=obj[0][0], block=blockno-1)
+                if previous:
+                    previous = previous[0]
+                    action = "update"
+                else:
+                    previous = None
+                    action = "insert"
             else:
                 previous = None
                 action = "insert"
@@ -1365,14 +1403,15 @@ class _FlureeDbClient:
         await self._figure_out_next_block()
         if not self.monitor["running"]:
             return
-        # First make a dict from the _predicate collection.
-        predicate = await self._build_predicates_map()
-        if not self.monitor["running"]:
-            return
-        noblocks = True
         startblock = await self._find_start_block()
         if not self.monitor["running"]:
             return
+        # First make a dict from the _predicate collection.
+        if startblock > 1:
+            await self._build_predicates_map(startblock - 1)
+        if not self.monitor["running"]:
+            return
+        noblocks = True
         if startblock > 1 and self.monitor["instant_monitors"] and self.monitor["lastblock_instant"] is None:
             self.monitor["lastblock_instant"] = await self._get_block_instant_by_blockno(startblock-1)
         if not self.monitor["running"]:
@@ -1395,8 +1434,8 @@ class _FlureeDbClient:
             if endblock:
                 if endblock > startblock:
                     noblocks = False
-                    for block in range(startblock + 1, endblock + 1):
-                        grouped, obj_tx, instant, block_meta = await self._get_and_preprocess_block(block, predicate)
+                    for block in range(startblock+1, endblock + 1):
+                        grouped, obj_tx, instant, block_meta = await self._get_and_preprocess_block(block)
                         # Process per object.
                         for obj in grouped:
                             if obj > 0:
