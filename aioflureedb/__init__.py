@@ -1185,7 +1185,7 @@ class _FlureeDbClient:
                     obj_tx[operation["_id"]] = operation
         return obj_tx
 
-    async def _do_instant_monitor(self, oldinstant, newinstant):
+    async def _do_instant_monitor(self, oldinstant, newinstant, blockno):
         for monitor in self.monitor["instant_monitors"]:
             predicate = monitor[0]
             offset = monitor[1]
@@ -1199,18 +1199,20 @@ class _FlureeDbClient:
                 where=[
                     ["?whatever", predicate, "?instant"],
                     {"filter": [filt]}
-                ])
+                ],
+                block=blockno
+                )
             for event in eventlist:
                 await callback(event)
 
-    async def _process_instance(self, instant, fromblock):
+    async def _process_instance(self, instant, block, fromblock):
         minute = 60000
         timeout = 1*minute
         if (fromblock or
                 self.monitor["lastblock_instant"] and
                 self.monitor["lastblock_instant"] + timeout < instant):
             if self.monitor["lastblock_instant"]:
-                await self._do_instant_monitor(self.monitor["lastblock_instant"], instant)
+                await self._do_instant_monitor(self.monitor["lastblock_instant"], instant, block)
             self.monitor["lastblock_instant"] = instant
 
     async def _get_and_preprocess_block(self, blockno, predicate):
@@ -1236,6 +1238,7 @@ class _FlureeDbClient:
         grouped = self._group_block_flakes(block_data, predicate)
         # Distill new ones using _tx/tempids
         obj_tx = dict()
+        block_meta = dict()
         for obj in grouped:
             transactions = None
             tempids = None
@@ -1245,13 +1248,16 @@ class _FlureeDbClient:
                 transactions, tempids = self._get_transactions_and_temp_ids(grouped[obj])
             if collection == "_block":
                 instant = self._get_block_instant(grouped[obj])
+                for flake in grouped[obj]:
+                    if len(flake[1].split("/")) > 1:
+                        block_meta[flake[1].split("/")[1]] = flake[2]
             if transactions:
                 obj_tx = self._get_object_id_to_operation_map(tempids, transactions)
             if instant:
-                await self._process_instance(instant, True)
-        return grouped, obj_tx, instant
+                await self._process_instance(instant, blockno, True)
+        return grouped, obj_tx, instant, block_meta
 
-    async def _process_flakeset(self, collection, obj, obj_tx, blockno):
+    async def _process_flakeset(self, collection, obj, obj_tx, blockno, block_meta):
         """Process temp ids and operations, return an object id to operation map.
 
         Parameters
@@ -1326,13 +1332,18 @@ class _FlureeDbClient:
                 action = "delete"
         if action == "insert" and "C" in self.monitor["listeners"][collection]:
             for callback in self.monitor["listeners"][collection]["C"]:
-                await callback(obj_id=obj[0][0], flakes=obj, new_obj=latest, operation=operation)
+                await callback(obj_id=obj[0][0], flakes=obj, new_obj=latest, operation=operation, block_meta=block_meta)
         elif action == "update" and "U" in self.monitor["listeners"][collection]:
             for callback in self.monitor["listeners"][collection]["U"]:
-                await callback(obj_id=obj[0][0], flakes=obj, old_obj=previous, new_obj=latest, operation=operation)
+                await callback(obj_id=obj[0][0],
+                               flakes=obj,
+                               old_obj=previous,
+                               new_obj=latest,
+                               operation=operation,
+                               block_meta=block_meta)
         elif action == "delete" and "D" in self.monitor["listeners"][collection]:
             for callback in self.monitor["listeners"][collection]["D"]:
-                await callback(obj_id=obj[0][0], flakes=obj, old_obj=previous, operation=operation)
+                await callback(obj_id=obj[0][0], flakes=obj, old_obj=previous, operation=operation, block_meta=block_meta)
 
     async def monitor_untill_stopped(self):
         """Run the block event monitor untill stopped
@@ -1374,7 +1385,7 @@ class _FlureeDbClient:
                 await asyncio.sleep(1)
                 if not self.monitor["running"]:
                     return
-                await self._process_instance(int(time.time()*1000), False)
+                await self._process_instance(int(time.time()*1000), startblock, False)
                 if not self.monitor["running"]:
                     return
             noblocks = True
@@ -1385,13 +1396,13 @@ class _FlureeDbClient:
                 if endblock > startblock:
                     noblocks = False
                     for block in range(startblock + 1, endblock + 1):
-                        grouped, obj_tx, instant = await self._get_and_preprocess_block(block, predicate)
+                        grouped, obj_tx, instant, block_meta = await self._get_and_preprocess_block(block, predicate)
                         # Process per object.
                         for obj in grouped:
                             if obj > 0:
                                 collection = self._get_flakeset_collection(grouped[obj])
                                 if collection in self.monitor["listeners"]:
-                                    await self._process_flakeset(collection, grouped[obj], obj_tx, block)
+                                    await self._process_flakeset(collection, grouped[obj], obj_tx, block, block_meta)
                                     if not self.monitor["running"]:
                                         return
                         # Call the persistence layer.

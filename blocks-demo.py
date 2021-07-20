@@ -6,17 +6,20 @@ import aioflureedb
 async def blockmon(block, instant):
     print("BLOCK DONE: ", block, instant)
 
-async def new_user(obj_id, flakes, new_obj, operation):
+async def new_user(obj_id, flakes, new_obj, operation, block_meta):
     print("NEW ROLE:", obj_id, flakes)
     print("        :", new_obj, operation)
+    print(json.dumps(block_meta, indent=4, sort_keys=True))
 
-async def dropped_user(obj_id, flakes, old_obj, operation):
+async def dropped_user(obj_id, flakes, old_obj, operation, block_meta):
     print("DROPPED ROLE:", obj_id, flakes)
     print("        :", old_obj, operation)
+    print(json.dumps(block_meta, indent=4, sort_keys=True))
 
-async def updated_user(obj_id, flakes, old_obj, new_obj, operation):
+async def updated_user(obj_id, flakes, old_obj, new_obj, operation, block_meta):
     print("UPDATED ROLE:", obj_id, flakes)
     print("        :", old_obj, new_obj, operation)
+    print(json.dumps(block_meta, indent=4, sort_keys=True))
 
 async def journal_entry(obj):
     print(json.dumps(obj, indent=4, sort_keys=True))
