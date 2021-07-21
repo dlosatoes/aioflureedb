@@ -1417,16 +1417,22 @@ class _FlureeDbClient:
         if not self.monitor["running"]:
             return
         stats_error_count = 0
+        last_instant = 0
         while self.monitor["running"]:
-            # If we had zero blocks to process the last time around, wait a full second before polling again if there are
-            #  new blocks.
+            # If we had zero blocks to process the last time around, wait a full second before
+            # polling again if there are new blocks.
             if noblocks:
                 await asyncio.sleep(1)
                 if not self.monitor["running"]:
                     return
                 await self._process_instance(int(time.time()*1000), startblock, False)
+                now = int(time.time()*1000)
+                if now - last_instant >= 59500: #Roughly one minute
+                    last_instant = now
+                    await self.monitor["on_block_processed"](startblock, now)
                 if not self.monitor["running"]:
                     return
+
             noblocks = True
             endblock, stats_error_count = await self._get_endblock()
             if not self.monitor["running"]:
@@ -1446,6 +1452,7 @@ class _FlureeDbClient:
                                         return
                         # Call the persistence layer.
                         await self.monitor["on_block_processed"](block, instant)
+                        last_instant = instant
                     # Set the new start block.
                     startblock = block
             else:
