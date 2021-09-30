@@ -422,6 +422,63 @@ If monitoring needs to be stopped, the method *monitor_close* can be used to sto
 Note that if your program wants to do more than just monitoring, you may want to send of *monitor_untill_stopped* into its own task. Discussion of this falls outside of the scope of this document.
 
 
+## Your own domain API
+
+Starting with version 0.2.9, aioflureedb provides users with the ability to create a custom domain API extention to aioflureedb without writing any python code. There are some conventions though you need to abide by to make the custom domain API work as intended. 
+
+Firs thing you need to do is you need to create an [apimap](apimap.MD) directory and populate it. When you have your apimap set up, you can plug in your own domain API with a few aioflureedb API calls.
+
+Currently the domain API works only with the *query* and the *command* endpoints.
+
+### Getting your role-oriented domain API using a database session.
+
+Inside of the database session we create a FlureeDomainAPI using the [apimap](apimap.MD) and the database session. Next we select the specific role sub-API we intend to be working from.
+
+```python
+...
+    async with db(privkey, addr) as database:
+        full_api = aioflureedb.FlureeDomainAPI("./api_maps", database)
+        role_api = full_api.get_api_by_role("demo_role")
+``` 
+
+### Queries of the domain API
+
+If the role defines query templates and optionally result transformation expressions for these queries, the defined query templates in the [apimap](apimap.MD) will be magically available now. We can do queries asynchonically from here.
+
+```python
+...
+    my_result = await role_api.my_custom_query(friend="Barry", year=2021)
+
+```
+
+### Transactions with the domain API
+
+Transactions are a tiny bit different if the transactions are simple and completable as a whole. Note though we need an extra step.
+
+```python
+...
+   transaction = role_api.my_custom_transaction(friend="Barry", start_year=2021, end_year=2028)
+   await transaction()
+```
+
+or shorter
+
+```python
+...
+   await role_api.my_custom_transaction(friend="Barry", start_year=2021, end_year=2028)()
+```
+
+Note the shorter version looks like the query API, just with extra round brackets at the end. The reason for this slightly different API is that transactions can be constructed from operation templates in a loop.
+
+```python
+...
+   transaction = role_api.my_other_custom_transaction(friend="Barry", start_year=2021)
+   for year in range(2021, 2029):
+       transaction.my_custom_operation(year=year)
+   await transaction()
+```
+
+
 ## More comming up.
 
 The above is the API for the 0.2 release of aioflureedb. Many API endpoints arent supported yet and none of them has currently been prioritized. Please [submit an issue](https://github.com/pibara/aioflureedb/issues) to help with prioritazion. Pull requests are also very much welcomed. Please make sure your patches don't break either *pylint* with the [provided config](https://github.com/pibara/aioflureedb/blob/master/.pylintrc) or *pycodestyle* using the *--max-line-length=128* option.
