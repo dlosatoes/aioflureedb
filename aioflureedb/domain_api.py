@@ -477,7 +477,8 @@ class _TemplateCollection:
                 dict or list
                     Query result from flureedb, possibly transformed
                 """
-                ll_query = self.query(kwargs)
+                print(kwargs)
+                ll_query = self.query(**kwargs)
                 ll_result = await self.database.flureeql.query.raw(ll_query())
                 return ll_query(ll_result)
 
