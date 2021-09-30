@@ -1,0 +1,9 @@
+{
+    "transactions": [
+        "create_demo_user_role",
+	"create_demo_user"
+    ],
+    "queries": [
+        "get_demo_users"
+    ]
+}

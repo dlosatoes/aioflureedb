@@ -1,0 +1,8 @@
+{
+  "select": [{"?user": ["username","doc",{"auth": ["id"]}]}],
+  "where": [
+        ["?role", "_role/id", "demo_role"],
+        ["?auth", "_auth/roles", "?role"],
+        ["?user","_user/auth","?auth"]
+  ]
+}

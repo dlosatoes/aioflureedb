@@ -1,0 +1,1 @@
+$[].{"name": username, "email": doc, "pubkey": auth[0].id}

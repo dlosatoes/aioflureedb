@@ -9,6 +9,7 @@ import json
 import time
 import aiohttp
 from aioflureedb.signing import DbSigner
+from aioflureedb.domain_api import FlureeDomainAPI
 
 
 class FlureeException(Exception):

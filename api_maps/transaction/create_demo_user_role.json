@@ -1,0 +1,8 @@
+[
+    {
+        "_id":"_role",
+        "id":"demo_role",
+        "doc": "The Demo Role, just an other root",
+        "rules": [["_rule/id", "root"]]
+    }
+]
