@@ -2,6 +2,7 @@
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-instance-attributes
+# pylint: disable=simplifiable-if-statement
 """Basic asynchonous client library for FlureeDB"""
 import sys
 import asyncio
@@ -373,6 +374,7 @@ class _SignedPoster:
         TypeError
             If an unknown kwarg is used on invocation OR a required kwarg is not supplied
         """
+        # pylint: disable=too-many-locals
         kwset = set()
         kwdict = dict()
         for key, value in kwargs.items():
@@ -1455,7 +1457,7 @@ class _FlureeDbClient:
                         await self.monitor["on_block_processed"](block, instant)
                         last_instant = instant
                     # Set the new start block.
-                    startblock = block
+                    startblock = endblock + 1
             else:
                 stats_error_count += 1
                 if stats_error_count > 100:

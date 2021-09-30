@@ -3,12 +3,12 @@
 import json
 import random
 import time
+from time import mktime
 import base64
 import hashlib
 import unicodedata
 from email.utils import formatdate
 from datetime import datetime
-from time import mktime
 import base58
 from ellipticcurve import privateKey, ecdsa
 
@@ -142,6 +142,7 @@ class DbSigner:
         string
             The URI used for signing.
         """
+        # pylint: disable=too-many-locals
         body = unicodedata.normalize("NFKC", json.dumps(param, separators=(',', ':')))
         uri = "/fdb/" + "-".join(querytype.split("_"))
         if self.database:
