@@ -16,10 +16,10 @@ async def domain_api_demo(key, addr):
         domain_api = aioflureedb.FlureeDomainAPI("./api_maps", database)
         print("Selecting role")
         role = domain_api.get_api_by_role("demo_role")
-        #print("Create transaction")
-        #trans1 = role.create_demo_user_role()
-        #print("Execute", type(trans1))
-        #await trans1()
+        print("Create transaction")
+        trans1 = role.create_demo_user_role()
+        print("Execute", type(trans1))
+        await trans1()
         print("Create transaction")
         trans2 = role.create_demo_user(
                 full_name="John Doe IV",
