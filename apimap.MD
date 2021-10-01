@@ -141,3 +141,11 @@ The *roles* directory is there to map the available *query* and *transaction* te
 ## The ffst directory
 
 The ffst directory is meant to contain integration testing scenarios for testing the apimap and schema against API usage patterns. Discussion of this directory falls outside of the scope of this document.
+
+# Future use of the apimap dir
+
+The usage of the apimap by *aioflureedb* is one of three places the above templates and transformation expressions. It is planned that the *apimap* directory stucture will be used by the next version of the [Fluree Schema Scenario Tool](https://github.com/pibara/fluree-schema-scenario-tool) to aid in supporting CICD-pipeline integration testing of the schema with the domain API, and a minimal JavaScript utility library is planned for allowing the *apimap* directory (or a compiled single file JSON config derived from it) to be used from JavaScript too. Note that the later will be a utility library only without integration with an actual JavaScript FlureeDB library.
+
+# Usage in aioflureedb with Python
+
+For information on how the *apimap* directory is used in aioflureedb and how to use it in your own Python code for creating and using a convenient custom domain API in your code, keeping most (possibly all if all you use is the query and command endpoints) fluree queries out of your code, while opening up the door for in-pipeline integration testing with the [Fluree Schema Scenario Tool](https://github.com/pibara/fluree-schema-scenario-tool) (in the near future), check out the [section](https://github.com/pibara/aioflureedb/blob/master/API.md#your-own-domain-api) in the aioflureedb API doc.
