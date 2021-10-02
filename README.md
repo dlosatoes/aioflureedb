@@ -1,6 +1,7 @@
 ## aioflureedb
 
-This library isn't fully production stable yet; Alpha.
+This library isn't fully production stable yet; Most of the code should be considered of late beta quality and stability. 
+This with the exception of the domain-API code that at moment of writing should be considered alpha.
 
 ### Install
 
