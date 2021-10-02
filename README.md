@@ -4,32 +4,10 @@ This library isn't fully production stable yet; Alpha.
 
 ### Install
 
-To install the 0.1 release, run
+To install run:
 
 ```bash
 python3 -m pip install aioflureedb
-```
-
-To install the dev snapshot instead (not recomended) run.
-```bash
-git clone https://github.com/pibara/aioflureedb.git
-cd aioflureedb
-python3 -m pip install .
-```
-
-
-### Testing the low level signing lib (dev snapshot only)
-If you wish to run the test scripts, install the FlureeDB Javascript library:
-This shouldn't be needed for normal operation.
-
-```bash
-npm install @fluree/crypto-utils
-```
-
-After that, you should be able to run:
-
-```bash
-./test-signing.sh
 ```
 
 ### API usage
@@ -48,8 +26,11 @@ These are:
 * query   (database client)
 * block   (database client)
 * command (database client)
+* ledger_stats (database client)
+* list_snapshots (database client)
+* snapshot (database client)
 
-Other endpoints are curently not supported yet.
+Other endpoints (export, multi_query, history, transact, graphql, sparql, reindex, hide, gen_flakes, query_with, test_transact_with, block_range_with, storage, pw) are curently not supported yet.
 
 ### Help prioritize!
 
