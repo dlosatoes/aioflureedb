@@ -1238,7 +1238,7 @@ class _FlureeDbClient:
             for event in eventlist:
                 await callback(event)
 
-    async def _process_instance(self, instant, block, fromblock):
+    async def _process_instant(self, instant, block, fromblock):
         minute = 60000
         timeout = 1*minute
         if (fromblock or
@@ -1291,7 +1291,7 @@ class _FlureeDbClient:
             if transactions:
                 obj_tx = self._get_object_id_to_operation_map(tempids, transactions)
             if instant:
-                await self._process_instance(instant, blockno, True)
+                await self._process_instant(instant, blockno, True)
         return grouped, obj_tx, instant, block_meta
 
     async def _process_flakeset(self, collection, obj, obj_tx, blockno, block_meta):
@@ -1406,7 +1406,7 @@ class _FlureeDbClient:
         await self._figure_out_next_block()
         if not self.monitor["running"]:
             return
-        startblock = await self._find_start_block()
+        startblock = await self._find_start_block() + 1
         if not self.monitor["running"]:
             return
         # First make a dict from the _predicate collection.
@@ -1428,11 +1428,11 @@ class _FlureeDbClient:
                 await asyncio.sleep(1)
                 if not self.monitor["running"]:
                     return
-                await self._process_instance(int(time.time()*1000), startblock, False)
+                await self._process_instant(int(time.time()*1000), startblock - 1, False)
                 now = int(time.time()*1000)
-                if now - last_instant >= 59500: #Roughly one minute
+                if now - last_instant >= 59500:  # Roughly one minute
                     last_instant = now
-                    await self.monitor["on_block_processed"](startblock, now)
+                    await self.monitor["on_block_processed"](startblock - 1, now)
                 if not self.monitor["running"]:
                     return
 
@@ -1441,9 +1441,9 @@ class _FlureeDbClient:
             if not self.monitor["running"]:
                 return
             if endblock:
-                if endblock > startblock:
+                if endblock >= startblock:
                     noblocks = False
-                    for block in range(startblock+1, endblock + 1):
+                    for block in range(startblock, endblock + 1):
                         grouped, obj_tx, instant, block_meta = await self._get_and_preprocess_block(block)
                         # Process per object.
                         for obj in grouped:
