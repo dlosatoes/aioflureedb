@@ -1,12 +1,27 @@
 from setuptools import setup, find_packages
 from codecs import open
 from os import path
-
+from sys import platform
+HAS_PYJSONATA = False
+try:
+    import pyjsonata
+except ImportError:
+    HAS_PYJSONATA = True
 here = path.abspath(path.dirname(__file__))
+
+requirements = ["starkbank-ecdsa==1.1.1", "aiohttp", "base58"]
+if platform in ["linux", "linux2"] or HAS_PYJSONATA:
+    requirements.append("pyjsonata")
+    if platform in ["linux", "linux2"]:
+        print("Note: \033[96mjsonata enabled on Linux platform\033[0m")
+    else:
+        print("Note: \033[96mdetected jsonata installed, enabled jsonata as dependency\033[0m")
+else:
+    print("Warning: \033[93mjsonata disabled on " + platform + "\033[0m")
 
 setup(
     name='aioflureedb',
-    version='0.2.11',
+    version='0.2.13',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,
@@ -25,7 +40,7 @@ setup(
         'Environment :: Other Environment'
     ],
     keywords='flureedb fluree flureeql sparql graphql',
-    install_requires=["starkbank-ecdsa==1.1.1", "aiohttp", "base58", "pyjsonata"],
+    install_requires=requirements,
     packages=find_packages(),
 )
 

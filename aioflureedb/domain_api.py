@@ -7,8 +7,13 @@ For the future, a tighter integration is desired.
 """
 import json
 import os
-from pyjsonata import jsonata
-
+AIOFLUREEDB_HAS_JSONATA = True
+try:
+    from pyjsonata import jsonata
+except ImportError:
+    AIOFLUREEDB_HAS_JSONATA = False
+    def jsonate(xform, json_data):
+        raise RuntimeError("Domain-API method uses a jsonata transformation-file while pyjsonata module is not available.")
 
 def _detemplate_object(kwargs, template):
     """Convert an object/dict type template to query or transaction chunk
@@ -336,6 +341,8 @@ class _TemplateCollection:
         """
         if templates:
             templatedir = os.path.join(self.apimapdir, subdir)
+            ignore_xform = os.environ.get('AIOFLUREEDB_IGNORE_XFORM') is not None
+            deep_fail = os.environ.get('AIOFLUREEDB_XFORM_DEEP_FAIL') is not None
             for template in templates:
                 # The default path for a template
                 filename = template + ".json"
@@ -355,7 +362,11 @@ class _TemplateCollection:
                 xform_path = os.path.join(templatedir, filename2)
                 try:
                     with open(xform_path) as xform_file:
-                        self.xform[template] = xform_file.read()
+                        if AIOFLUREEDB_HAS_JSONATA or deep_fail:
+                            self.xform[template] = xform_file.read()
+                        else:
+                            if not ignore_xform:
+                                raise RuntimeError("API-Map uses jsonata transformation files while pyjsonata module is not available.")
                 except FileNotFoundError:
                     pass
 
@@ -505,7 +516,7 @@ class _TemplateCollection:
 
 class FlureeDomainAPI:
     # pylint: disable=too-few-public-methods
-    """Highest level object for encapsulating full daomain API"""
+    """Highest level object for encapsulating full domain API"""
     def __init__(self, apimapdir, database=None):
         """Constructor
 

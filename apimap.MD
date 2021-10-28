@@ -39,7 +39,19 @@ If this fill is named *get_demo_users.json*, this would basically be enough for 
 $[].{"name": username, "email": doc, "pubkey": auth[0].id}
 ```
 
-Note that xform files are optional, if not pressent, the raw flureedb response will be returned (as python dict or list).
+Note that xform files are optional, and are not supported on all platforms. If not pressent, the raw flureedb response will be returned (as python dict or list).
+
+### jsonata and platform dependencies
+
+The xform files described above depend on the [pyjsonata[(https://pypi.org/project/pyjsonata/) module that unfortunately doesnt work on MS-Windows. On Linux and Docker pyjsonata works just fine. It is unknown (currently assumed it doesn't) if pyjsonata works on other platforms.  If this assumption is wrong, install pyjsonata on your system before installing aioflureedb and please notify the authors of aioflureedb they should add pyjsonata on your platform.
+
+If you install aioflureedb on a system without pyjsonata support, by default aioflureedb will throw a *RuntimeError* when loading an api-map directory. This behaviour can be changed by setting one of two environment variables:
+
+* AIOFLUREEDB_IGNORE_XFORM : If this enviropnment variable is set to any value, the existance of xform files will get ignored as if the files werent there.
+
+* AIOFLUREEDB_XFORM_DEEP_FAIL : If this enviropnment variable is set to any value, no exception will be thrown on api-map directory load. Instead a *RuntimeError* will be thrown when a domain API method is called for what an xform file has been defined.
+
+### Template argument anotation
 
 A template isn't much of a template witout template arguments. Right now "*demo_role*" is hard coded into the query. We could turn the role into a template parameter *role* like this:
 
