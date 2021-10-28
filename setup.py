@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 from codecs import open
 from os import path
 from sys import platform
-HAS_PYJSONATA = False
+HAS_PYJSONATA = True
 try:
     import pyjsonata
 except ImportError:
-    HAS_PYJSONATA = True
+    HAS_PYJSONATA = False
 here = path.abspath(path.dirname(__file__))
 
 requirements = ["starkbank-ecdsa==1.1.1", "aiohttp", "base58"]
@@ -21,7 +21,7 @@ else:
 
 setup(
     name='aioflureedb',
-    version='0.2.13',
+    version='0.2.14',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,
