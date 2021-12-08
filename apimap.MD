@@ -12,7 +12,10 @@ Next to these directories that are used by *aioflureedb*, there is a directory t
 
 * fsst
 
-Discussion of the last directory falls outside of the scope of this document.
+A directory used by the fsst tool to integrate domain-API tests into the **fsst test* and **fsst dockertest** commands. This directory for a great part holds the same structure as the top-level directory. It has a *query*, *transaction* and a *roles* subdir that work exactly the same as the top level directory with just a minor difference: The roles are testing roles. There is a *root* role and a *test* role and these roles are used for defining a helper API that can be used to communicate with FlureeDB from within a test. 
+
+The *fsst* directory has one extra sub directory that doesn't exist at the top level: The *tests* directory. 
+The test directory contains test modules, written in Python, for testing the API for a specific role. Note that version 0.3 or higher of the fsst tool is required to use these tests.
 
 ## The query directory
 
@@ -150,13 +153,72 @@ The *roles* directory is there to map the available *query* and *transaction* te
 }
 ```
 
-## The ffst directory
+## Domain-API unit-tests in the ffst/tests directory
 
-The ffst directory is meant to contain integration testing scenarios for testing the apimap and schema against API usage patterns. Discussion of this directory falls outside of the scope of this document.
+Files in the ffst/tests directory are Python files that define a testing module for a domain-API for a specific role. By convention the name of the file should be the name of the role, but if one role uses more than one testing module, other names are allowed also.
 
-# Future use of the apimap dir
+A module defines exactly one class named DomainApiTest. The definition should start like:
 
-The usage of the apimap by *aioflureedb* is one of three places the above templates and transformation expressions. It is planned that the *apimap* directory stucture will be used by the next version of the [Fluree Schema Scenario Tool](https://github.com/pibara/fluree-schema-scenario-tool) to aid in supporting CICD-pipeline integration testing of the schema with the domain API, and a minimal JavaScript utility library is planned for allowing the *apimap* directory (or a compiled single file JSON config derived from it) to be used from JavaScript too. Note that the later will be a utility library only without integration with an actual JavaScript FlureeDB library.
+```python
+class DomainApiTest:
+    """Domain-API test class"""
+    # pylint: disable=too-few-public-methods
+    def __init__(self, test_env):
+        """Constructor"""
+        self.env = test_env
+```
+
+For every role-method the domain-API defines, one or more tests can be defined. These tests will run as the user defined in the fsst stage or step directory, and is supplied with two domain API objects. One with the actual domain API for the role, and an other one for the fsst helper API defined in the apimap. Naming of these test starts with **run_test_** followed by the name of the API mapping that is to be tested. If there is more than one test for a single API mapping, the name for all but the first test should be extended with an underscore and a sequence number
+
+```python
+    async def run_test_delete_user_by_auth(self, domain_api, test_api):
+        return None
+
+    async def run_test_delete_user_by_auth_1(self, domain_api, test_api):
+        return None
+
+    async def run_test_delete_user_by_auth_2(self, domain_api, test_api):
+        return None
+```
+
+The return value of a test should be a boolean or a tuple of a boolean and a string
+
+```
+    return False, "Newly created user not found"
+```
+
+If a test is under construction, it is OK to return None instead. Please note None won''t be counted as a positive or negative and won''t count towards the coverage metric.
+
+Prior to calling the API tests, there are two initializer methods that you can define if needed. The methods **prepare_root** and **prepare_user**. Inside of these methods transactions cn be done to prepare for the actual tests. The prepare_user method will be infoked prior to any test as the user/auth as what the tests will also be running.
+
+```
+async def prepare_user(self, domain_api, test_api):
+        """Any prepare stuff we need to do as non-root test user"""
+        ... # do some stuff here
+        return True
+
+```
+
+It is also very much possible or even likely that the user/auth that runs the tests won't have sufficient rights to prepare the database for running the test. For this reason, prior to running prepare_user, the prepare_root method will be called if it exists, with two API maps running with root credentials
+
+```python
+async def prepare_root(self, domain_api, test_api):
+        """Any prepare stuff we need to do as root"""
+        await test_api.create_demo_role()()
+        return True
+```
+
+When all tests are done running, there is a possibility to define one or two cleanup methods. Curently the use for cleanup is rather limited.
+
+```python
+    async def cleanup_root(self, domain_api, test_api):
+        """Any cleanup we need to do as root"""
+        return True
+
+    async def cleanup_user(self, domain_api, test_api):
+        """Any cleanup we need to do as non-root user"""
+        return True
+```
 
 # Usage in aioflureedb with Python
 
