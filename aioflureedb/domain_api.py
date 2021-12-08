@@ -134,7 +134,7 @@ class _ExpanderFunction:
         self.template = template
         self.expander = expander
 
-    def __call__(self, **kwargs):
+    def __call__(self, *args, **kwargs):
         """Expand template with operation
 
         Parameters
@@ -290,7 +290,10 @@ class _Transformer:
         # Otherwise, we transform the query result as defined in the transformation jsonata file
         if self.xform is None:
             return query_result
-        return json.loads(jsonata(self.xform, json.dumps(query_result)))
+        rval = jsonata(self.xform, json.dumps(query_result))
+        if rval == 'undefined':
+            return None
+        return json.loads(rval)
 
 
 class _TemplateCollection:
@@ -408,7 +411,7 @@ class _TemplateCollection:
                 self.collection = collection
                 self.database = database
 
-            def __call__(self, **kwargs):
+            def __call__(self, *args, **kwargs):
                 """Invocation function object
 
                 Parameters
@@ -444,7 +447,7 @@ class _TemplateCollection:
                 if name in collection.xform:
                     self.xform = collection.xform[name]
 
-            def __call__(self, **kwargs):
+            def __call__(self, *args, **kwargs):
                 """Invoke
 
                 Parameters
@@ -475,7 +478,7 @@ class _TemplateCollection:
                 self.query = query
                 self.database = database
 
-            async def __call__(self, **kwargs):
+            async def __call__(self, *args, **kwargs):
                 """Async Invoke
 
                 Parameters
@@ -488,7 +491,6 @@ class _TemplateCollection:
                 dict or list
                     Query result from flureedb, possibly transformed
                 """
-                print(kwargs)
                 ll_query = self.query(**kwargs)
                 ll_result = await self.database.flureeql.query.raw(ll_query())
                 return ll_query(ll_result)
