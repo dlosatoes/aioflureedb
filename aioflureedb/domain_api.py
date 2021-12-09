@@ -12,7 +12,21 @@ try:
     from pyjsonata import jsonata
 except ImportError:
     AIOFLUREEDB_HAS_JSONATA = False
-    def jsonate(xform, json_data):
+    def jsonata(xform, json_data):
+        """We don't want to fail on import, we only want to fail on usage
+
+        Parameters
+        ----------
+
+        xform : str
+            Transformation code
+        json_data : str
+            Source json
+        Raises
+        ------
+        RuntimeError
+            Raised always because of missing jsonata library
+        """
         raise RuntimeError("Domain-API method uses a jsonata transformation-file while pyjsonata module is not available.")
 
 def _detemplate_object(kwargs, template):
@@ -139,6 +153,10 @@ class _ExpanderFunction:
 
         Parameters
         ----------
+
+        args : list
+            Positional arguments, these will be ignored!
+
         kwargs : dict
             key value dict with arguments
         """
@@ -341,6 +359,11 @@ class _TemplateCollection:
         templates : list
             Names of the templates of this type
 
+        Raises
+        ------
+        RuntimeError
+            Raised if jsonata used but not available on platform
+
         """
         if templates:
             templatedir = os.path.join(self.apimapdir, subdir)
@@ -367,9 +390,8 @@ class _TemplateCollection:
                     with open(xform_path) as xform_file:
                         if AIOFLUREEDB_HAS_JSONATA or deep_fail:
                             self.xform[template] = xform_file.read()
-                        else:
-                            if not ignore_xform:
-                                raise RuntimeError("API-Map uses jsonata transformation files while pyjsonata module is not available.")
+                        elif not ignore_xform:
+                            raise RuntimeError("API-Map uses jsonata transformation files while pyjsonata module is not available.")
                 except FileNotFoundError:
                     pass
 
@@ -416,6 +438,10 @@ class _TemplateCollection:
 
                 Parameters
                 ----------
+
+                args : list
+                    Positional arguments, these will be ignored!
+
                 kwargs : dict
                     Keyword arguments
 
@@ -452,6 +478,10 @@ class _TemplateCollection:
 
                 Parameters
                 ----------
+
+                args : list
+                    Positional arguments, these will be ignored!
+
                 kwargs : dict
                     keyword arguments
 
@@ -483,6 +513,10 @@ class _TemplateCollection:
 
                 Parameters
                 ----------
+
+                args : list
+                    Positional arguments, these will be ignored!
+
                 kwargs : dict
                     Keyword arguments
 
