@@ -1,0 +1,18 @@
+{
+  "root_auth": {
+    "select": {"?auth": ["id"]},
+    "where": [
+        ["?role", "_role/id", "::role"],
+        ["?auth", "_auth/roles", "?role"]
+    ]
+  },
+  "functions": {
+    "select": {"?fn": ["name", "code"]},
+    "where": [
+        ["?role", "_role/id", "::role"],
+        ["?role", "_role/rules", "?rule"],
+        ["?rule", "_rule/fns", "?fn"]
+    ]
+  }
+}
+

@@ -1,0 +1,1 @@
+{"auth": $.root_auth.id, "fn": $.functions.name[]}

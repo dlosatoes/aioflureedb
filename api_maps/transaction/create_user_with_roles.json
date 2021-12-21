@@ -1,0 +1,14 @@
+[
+    {
+        "_id":"_user",
+        "username":"::full_name",
+        "doc": "::email",
+        "auth": ["_auth$new_user"]
+    },
+    {
+        "_id": "_auth$new_user",
+        "id": "::pubkey",
+        "doc": "::email",
+	"::[]roles:roles": ["_role/id", "$"]
+    }
+]

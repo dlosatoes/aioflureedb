@@ -362,9 +362,9 @@ class _Transformer:
 
 
 class _TemplateCollection:
-    # pylint: disable=too-few-public-methods
+    # pylint: disable=too-few-public-methods, too-many-instance-attributes
     """The core template collection class used for role sub-APIs"""
-    def __init__(self, transactions, queries, apimapdir, database):
+    def __init__(self, transactions, queries, multi, apimapdir, apimap, database):
         """Constructor
 
         Parameters
@@ -373,15 +373,22 @@ class _TemplateCollection:
             list of transaction template names
         queries : list
             list of query template names
+        multi: list
+            list of multi-query template names
         apimapdir: string
             path where the api map files are
+        apimap: dict
+            if the api map is a json file, this argument has it's content
         database : _FlureeDbClient
             Optional fluree database session
         """
+        # pylint: disable=too-many-arguments
         # Set with possible transactions
         self.transactions = set(transactions)
+        # Set with multi-queries
+        self.multi = set(multi)
         # Set with possible templates
-        self.valid = set(queries).union(self.transactions)
+        self.valid = set(queries).union(self.transactions).union(self.multi)
         # Set with the templates that actually have been used. Meant for coverage metrics.
         self.used = set()
         # The templates for the role
@@ -390,11 +397,14 @@ class _TemplateCollection:
         self.xform = dict()
         # Directory where all the templates, xform files and role definitions reside
         self.apimapdir = apimapdir
+        # And if used the deserialized JSON
+        self.apimap = apimap
         # database or None
         self.database = database
         # Initialize the templates dict.
         self._init_templates("transaction", transactions)
         self._init_templates("query", queries)
+        self._init_templates("multi", multi)
 
     def _init_templates(self, subdir, templates):
         """Initialize the templates dicts for this role
@@ -412,35 +422,51 @@ class _TemplateCollection:
             Raised if jsonata used but not available on platform
 
         """
+        # pylint: disable=too-many-branches
         if templates:
-            templatedir = os.path.join(self.apimapdir, subdir)
+            if self.apimap is None:
+                templatedir = os.path.join(self.apimapdir, subdir)
+            else:
+                templatedir = None
             ignore_xform = os.environ.get('AIOFLUREEDB_IGNORE_XFORM') is not None
             deep_fail = os.environ.get('AIOFLUREEDB_XFORM_DEEP_FAIL') is not None
             for template in templates:
-                # The default path for a template
-                filename = template + ".json"
-                template_path = os.path.join(templatedir, filename)
-                try:
-                    # First try the default path
-                    with open(template_path) as template_file:
-                        self.templates[template] = json.load(template_file)
-                except FileNotFoundError:
-                    # If that fails, try the alternative subdir based path for transactions
-                    alt_filename = os.path.join(template, "default.json")
-                    template_path = os.path.join(templatedir, alt_filename)
-                    with open(template_path) as template_file:
-                        self.templates[template] = json.load(template_file)
-                # For queries, try to load the jsonata xform expression if it exists.
-                filename2 = template + ".xform"
-                xform_path = os.path.join(templatedir, filename2)
-                try:
-                    with open(xform_path) as xform_file:
-                        if AIOFLUREEDB_HAS_JSONATA or deep_fail:
-                            self.xform[template] = xform_file.read()
-                        elif not ignore_xform:
-                            raise RuntimeError("API-Map uses jsonata transformation files while pyjsonata module is not available.")
-                except FileNotFoundError:
-                    pass
+                if templatedir is not None:
+                    # The default path for a template
+                    filename = template + ".json"
+                    template_path = os.path.join(templatedir, filename)
+                    try:
+                        # First try the default path
+                        with open(template_path) as template_file:
+                            self.templates[template] = json.load(template_file)
+                    except FileNotFoundError:
+                        # If that fails, try the alternative subdir based path for transactions
+                        alt_filename = os.path.join(template, "default.json")
+                        template_path = os.path.join(templatedir, alt_filename)
+                        with open(template_path) as template_file:
+                            self.templates[template] = json.load(template_file)
+                    # For queries, try to load the jsonata xform expression if it exists.
+                    filename2 = template + ".xform"
+                    xform_path = os.path.join(templatedir, filename2)
+                    try:
+                        with open(xform_path) as xform_file:
+                            if AIOFLUREEDB_HAS_JSONATA or deep_fail:
+                                self.xform[template] = xform_file.read()
+                            elif not ignore_xform:
+                                raise RuntimeError("API-Map uses jsonata transformation files while pyjsonata module is not available.")
+                    except FileNotFoundError:
+                        pass
+                else:
+                    if subdir in self.apimap and template in self.apimap[subdir]:
+                        self.templates[template] = self.apimap[subdir][template]
+                    else:
+                        raise RuntimeError("Can't locate template in api map file:" + subdir + "::" + template)
+                    if subdir in ["query", "multi"]:
+                        if "xform" in self.apimap and template in self.apimap["xform"]:
+                            if AIOFLUREEDB_HAS_JSONATA or deep_fail:
+                                self.xform[template] = self.apimap["xform"][template]
+                            elif not ignore_xform and self.apimap["xform"][template] != "$":
+                                raise RuntimeError("API-Map uses jsonata transformation files while pyjsonata module is not available.")
 
     def __getattr__(self, name):
         """Automatically map the role config to valid methods
@@ -577,11 +603,51 @@ class _TemplateCollection:
                 ll_result = await self.database.flureeql.query.raw(ll_query())
                 return ll_query(ll_result)
 
+        class AsyncMultiQuery:
+            """Query functor"""
+            def __init__(self, query, database):
+                """Constructor
+
+                Parameters
+                ----------
+                query : dict
+                    The query dict as produced by template.
+                database : _FlureeDbClient
+                    Active database session
+                """
+                self.query = query
+                self.database = database
+
+            async def __call__(self, *args, **kwargs):
+                """Async Invoke
+
+                Parameters
+                ----------
+
+                args : list
+                    Positional arguments, these will be ignored!
+
+                kwargs : dict
+                    Keyword arguments
+
+                Returns
+                -------
+                dict or list
+                    Query result from flureedb, possibly transformed
+                """
+                ll_query = self.query(**kwargs)
+                ll_result = await self.database.multi_query(ll_query()).query()
+                return ll_query(ll_result)
+
         # Return a query functor or transaction functor depending on config.
         if name in self.valid:
             self.used.add(name)
             if name in self.transactions:
                 return Transaction(self, name, self.database)
+            if name in self.multi:
+                if self.database is None:
+                    return Query(self, name)
+                return AsyncMultiQuery(Query(self, name), self.database)
             if self.database is None:
                 return Query(self, name)
             return AsyncQuery(Query(self, name), self.database)
@@ -611,7 +677,13 @@ class FlureeDomainAPI:
         database: _FlureeDbClient
             Active database session
         """
-        self.apimapdir = apimapdir
+        if os.path.isdir(apimapdir):
+            self.apimapdir = apimapdir
+            self.apimap = None
+        elif os.path.splitext(apimapdir)[1].lower() == ".json":
+            self.apimapdir = None
+            with open(apimapdir) as mapfil:
+                self.apimap = json.load(mapfil)
         self.database = database
 
     def get_api_by_role(self, role):
@@ -627,9 +699,25 @@ class FlureeDomainAPI:
         _TemplateCollection
             Template collection for the given role
         """
-        rolesdir = os.path.join(self.apimapdir, "roles")
-        filename = role + ".json"
-        role_path = os.path.join(rolesdir, filename)
-        with open(role_path) as role_file:
-            role = json.load(role_file)
-        return _TemplateCollection(role["transactions"], role["queries"], self.apimapdir, self.database)
+        if self.apimap is None:
+            rolesdir = os.path.join(self.apimapdir, "roles")
+            filename = role + ".json"
+            role_path = os.path.join(rolesdir, filename)
+            with open(role_path) as role_file:
+                myrole = json.load(role_file)
+        else:
+            myrole = self.apimap["roles"][role]
+        if "transactions" in myrole:
+            transactions = myrole["transactions"]
+        else:
+            transactions = []
+        if "queries" in myrole:
+            queries = myrole["queries"]
+        else:
+            queries = []
+        if "multi" in myrole:
+            multi = myrole["multi"]
+        else:
+            multi = []
+        return _TemplateCollection(transactions, queries, multi,
+                                   self.apimapdir, self.apimap, self.database)

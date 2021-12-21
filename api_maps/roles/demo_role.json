@@ -5,5 +5,8 @@
     ],
     "queries": [
         "get_demo_users"
+    ],
+    "multi": [
+        "get_role_info"
     ]
 }
