@@ -148,6 +148,52 @@ _FLUREEQLQUERY_ENDPOINT_PERMISSIONS = {
     }
 }
 
+class _FlureeQlSubQuery:
+    """Helper class for FlureeQL multi-query syntactic sugar"""
+    def __init__(self, endpoint, method):
+        """Constructor
+
+        Parameters
+        ----------
+        endpoint : _FlureeQlEndpoint
+                   API endpoint for communicating FlureeQL queries with FlureeDB
+        method : str
+               Name for the sub-query
+        """
+        self.endpoint = endpoint
+        self.method = method
+        self.permittedkeys = _FLUREEQLQUERY_ENDPOINT_PERMISSIONS["query"]['permitted']
+        self.depricatedkeys = _FLUREEQLQUERY_ENDPOINT_PERMISSIONS["query"]['depricated']
+
+    def __call__(self, **kwargs):
+        """FlureeQl query construction through keyword arguments
+
+        Parameters
+        ----------
+        kwargs: dict
+                Keyword arguments for different parts of a FlureeQL query.
+
+        Raises
+        ------
+        TypeError
+            If an unknown kwarg value is used.
+
+        """
+        obj = dict()
+        for key, value in kwargs.items():
+            if key == "ffrom":
+                key = "from"
+            if key == "ffilter":
+                key = "filter"
+            if key not in self.permittedkeys:
+                if key not in self.depricatedkeys:
+                    raise TypeError("FlureeQuery got unexpected keyword argument '" + key + "'")
+                print("WARNING: Use of depricated FlureeQL syntax,",
+                      key,
+                      "should not be used as top level key in queries",
+                      file=sys.stderr)
+            obj[key] = value
+        self.endpoint.multi_query[self.method] = obj
 
 class _FlureeQlQuery:
     """Helper class for FlureeQL query syntactic sugar"""
@@ -837,7 +883,7 @@ class _FlureeDbClient:
                                     "storage",
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
-        self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats", "list_snapshots", "snapshot"])
+        self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats", "list_snapshots", "snapshot", "multi_query"])
 
     def monitor_init(self, on_block_processed, start_block=None, rewind=0, always_query_object=False, start_instant=None):
         """Set the basic variables for a fluree block event monitor run
@@ -1646,6 +1692,67 @@ class _FlureeDbClient:
                 """
                 return await self._post_body_with_headers(None, None)
 
+        class FlureeQlEndpointMulti:
+            """Endpoint for JSON based (FlureeQl) multi-queries"""
+            def __init__(self, client, ssl_verify_disabled, raw=None):
+                """Constructor
+
+                Parameters
+                ----------
+                client: object
+                        The wrapping _FlureeDbClient
+                ssl_verify_disabled: bool
+                    When using https, don't validata ssl certs.
+                raw: dict
+                    The whole raw multiquery
+                """
+                self.stringendpoint = _StringEndpoint("multi_query", client, ssl_verify_disabled)
+                self.multi_query = dict()
+
+            def __call__(self, raw=None):
+                if raw is not None:
+                    self.multi_query = raw
+                return self
+
+            def __dir__(self):
+                """Dir function for class
+
+                Returns
+                -------
+                list
+                    List of defined (pseudo) attributes
+                """
+                return ["__call__", "__dir__", "__init__"]
+
+            def __getattr__(self, method):
+                """query
+
+                Parameters
+                ----------
+                method : string
+                         subquery name
+
+                Returns
+                -------
+                _FlureeQlSubQuery
+                    Helper class for creating FlureeQl multi-queries.
+
+                """
+                return _FlureeQlSubQuery(self, method)
+
+            async def query(self):
+                """Do the actual multi-query
+
+                Returns
+                -------
+                dict
+                    The result from the mult-query
+                """
+                print("QUERY:", json.dumps(self.multi_query))
+                return_body = await self.stringendpoint.header_signed(self.multi_query)
+                print("RESPONSE:", return_body)
+                return json.loads(return_body)
+
         class FlureeQlEndpoint:
             """Endpoint for JSON based (FlureeQl) queries"""
             def __init__(self, api_endpoint, client, ssl_verify_disabled):
@@ -1798,6 +1905,8 @@ class _FlureeDbClient:
             if self.signer is None:
                 raise FlureeKeyRequired("Command endpoint not supported in open-API mode. privkey required!")
             return CommandEndpoint(api_endpoint, self, self.ssl_verify_disabled)
+        if api_endpoint in ["multi_query"]:
+            return FlureeQlEndpointMulti(self, self.ssl_verify_disabled)
         if api_endpoint == 'ledger_stats':
             return LedgerStatsEndpoint(self, self.ssl_verify_disabled)
         return FlureeQlEndpoint(api_endpoint, self, self.ssl_verify_disabled)

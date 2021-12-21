@@ -9,7 +9,7 @@ except ImportError:
     HAS_PYJSONATA = False
 here = path.abspath(path.dirname(__file__))
 
-requirements = ["starkbank-ecdsa==1.1.1", "aiohttp", "base58"]
+requirements = ["starkbank-ecdsa>=2.0.3", "aiohttp", "base58"]
 if platform in ["linux", "linux2"] or HAS_PYJSONATA:
     requirements.append("pyjsonata")
     if platform in ["linux", "linux2"]:
@@ -21,7 +21,7 @@ else:
 
 setup(
     name='aioflureedb',
-    version='0.2.16',
+    version='0.2.17',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,

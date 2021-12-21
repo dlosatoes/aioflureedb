@@ -26,6 +26,8 @@ def _to_hex(x):
     string
         Hex representation of the binary string.
     """
+    if isinstance(x, bytes):
+        return x.hex()
     return "".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 
@@ -50,7 +52,9 @@ class DbSigner:
         """
         if len(privkey) != 64:
             privkey = base58.b58decode(privkey).hex()
-        self.private_key = privateKey.PrivateKey.fromString(bytes.fromhex(privkey))
+        # Old line from 1.0.3
+        # self.private_key = privateKey.PrivateKey.fromString(bytes.fromhex(privkey))
+        self.private_key = privateKey.PrivateKey.fromString(privkey)
         self.public_key = self.private_key.publicKey()
         self.auth_id = address
         self.database = database

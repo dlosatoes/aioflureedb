@@ -29,6 +29,38 @@ except ImportError:
         """
         raise RuntimeError("Domain-API method uses a jsonata transformation-file while pyjsonata module is not available.")
 
+def _detemplate_cell(value, template):
+    """Convert a "$" containing template chunk
+
+    Parameters
+    ----------
+    value : str
+        The value to use for "$"
+    template: any
+        Template or part of a template that needs expanding.
+
+    Returns
+    -------
+    any
+        returns a detemplated version of the input template.
+    """
+    if isinstance(template, str):
+        if template == "$":
+            return value
+        return template
+    if isinstance(template, list):
+        rval = list()
+        for entry in template:
+            rval.append(_detemplate_cell(value, entry))
+        return rval
+    if isinstance(template, dict):
+        rval2 = dict()
+        for key in template.keys():
+            rval2[key] = _detemplate_cell(value, template[key])
+        return rval2
+    return template
+
+
 def _detemplate_object(kwargs, template):
     """Convert an object/dict type template to query or transaction chunk
 
@@ -49,6 +81,7 @@ def _detemplate_object(kwargs, template):
     ValueError
         Raised if missing kwarg key
     """
+    # pylint: disable=too-many-branches
     # start off with an empty return value dict
     rval = dict()
     # Itterate over all key/value pairs in the template
@@ -74,8 +107,22 @@ def _detemplate_object(kwargs, template):
                 # Other strings are just copied as is.
                 rval[key] = val
         elif isinstance(val, list):
-            # If the val is a list, detemplate that list.
-            rval[key] = _detemplate_list(kwargs, val)
+            # If the val is a list, first check if it's an erasure array
+            if key[:4] == "::[]":
+                if ":" in key[4:]:
+                    optional_name, varname = key[4:].split(":")
+                else:
+                    optional_name = key[4:]
+                    varname = optional_name
+
+                if varname in kwargs.keys() and isinstance(kwargs[varname], list):
+                    possible_val = list()
+                    for value in kwargs[varname]:
+                        possible_val.append(_detemplate_cell(value, val))
+                if possible_val:
+                    rval[optional_name] = possible_val
+            else:
+                rval[key] = _detemplate_list(kwargs, val)
         elif isinstance(val, dict):
             # If the val is another dict, detemplate that dict
             rval[key] = _detemplate_object(kwargs, val)
@@ -379,7 +426,7 @@ class _TemplateCollection:
                         self.templates[template] = json.load(template_file)
                 except FileNotFoundError:
                     # If that fails, try the alternative subdir based path for transactions
-                    alt_filename = template + "/default.json"
+                    alt_filename = os.path.join(template, "default.json")
                     template_path = os.path.join(templatedir, alt_filename)
                     with open(template_path) as template_file:
                         self.templates[template] = json.load(template_file)
@@ -405,13 +452,14 @@ class _TemplateCollection:
 
         Returns
         -------
-        Transaction, Query or AsyncQuery
-            Depending if name maps to a query or transaction and if database is set/
+        callable
+            Depending if name maps to a query or transaction and if database is set
 
         Raises
         ------
         AttributeError
             Raised if name not known.
+
         """
 
         class Transaction:

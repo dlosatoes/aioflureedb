@@ -9,6 +9,7 @@ import aioflureedb
 import bitcoinlib
 from ellipticcurve import privateKey, ecdsa
 import base58
+import json
 
 def get_privkey_from_running_docker():
     print("Finding fluree docker")
@@ -90,7 +91,7 @@ async def fluree_demo(privkey, addr):
         print("########################################")
         print("NEWKEYS", await flureeclient.new_keys())
         print("########################################")
-        new_db = await flureeclient.new_db(db_id="dev/test24")
+        new_db = await flureeclient.new_db(db_id="dev/test50")
         print("NEWDB", new_db)
         # Not working yet, need to look into del_db
         #   del_db = await flureeclient.delete_db(db_id="dev/test14")
@@ -100,29 +101,22 @@ async def fluree_demo(privkey, addr):
             print("### NET:",network)
             for db in network:
                 print("   -", db)
-        db = await flureeclient["dla/dla"]
-        # print("Network OK")
-        # db = network["dla"]
-        print("DB OK")
-    async with db(privkey, addr) as database:
-        print("Database client created")
-        print("ENDPOINTS:", dir(database))
-        randomuser = "user-" + str(int(time.time()) % 10000)
-        print("Creating user:", randomuser)
-        print("################################")
-        transaction = await database.command.transaction([{"_id":"_user","username": randomuser}])
-        print("================================")
-        print("OK: Transaction completed,", transaction)
-        try:
-            result = await database.flureeql.query(
-                select=["*"],
-                ffrom="_user"
-            )
-            print("Query succeeded, user count =", len(result))
-        except Exception as exp:
-            print("OOPS: ", exp)
-    # await flureeclient.close_session()
-    # await database.close_session()
+        db = await flureeclient["dev/test50"]
+        async with db() as database:
+            await asyncio.sleep(10)
+            res = await database.flureeql.query(select=["name"], ffrom="_predicate")
+            print("RES1:", json.dumps(res))
+            print("Creating multiquery")
+            mq = database.multi_query()
+            print(type(mq))
+            print("Expanding multi-query")
+            mq.predicates(select=["name"], ffrom="_predicate")
+            print("Expanding multi-query")
+            mq.collections(select=["name"], ffrom="_collection")
+            print("Calling multi-query")
+            result = await mq.query()
+            print(result)
+
 
 
 
