@@ -996,7 +996,7 @@ class _FlureeDbClient:
             else:
                 predicates = None
         else:
-            predicates = await self.flureeql.query(select=["name","multi"], ffrom="_predicate")
+            predicates = await self.flureeql.query(select=["name", "multi"], ffrom="_predicate")
         if predicates is not None:
             predicate = {}
             is_multi = {}
