@@ -21,7 +21,7 @@ else:
 
 setup(
     name='aioflureedb',
-    version='0.2.18',
+    version='0.3.0',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,

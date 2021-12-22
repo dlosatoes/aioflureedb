@@ -30,7 +30,7 @@ async def blocks_demo():
         print("Waiting till Fluree is ready")
         await flureeclient.health.ready()
         print("Looking up database")
-        db = await flureeclient["dla/base"]
+        db = await flureeclient["dla/latestforprod"]
     print("Opening database")
     async with db() as database:
         print("Initializing monitor")

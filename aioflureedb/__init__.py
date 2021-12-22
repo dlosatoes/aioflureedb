@@ -94,41 +94,6 @@ class FlureeUnexpectedPredicateNumber(FlureeException):
         FlureeException.__init__(self, message)
 
 
-def _dryrun(method, url, headers, body):
-    """Helper function for debugging the library
-
-    Parameters
-    ----------
-    method :  str
-              HTTP method (POST or GET
-    url :     str
-              The url that would have been used
-    headers : dict
-              Dictionary with HTTP headers that would have been used
-    body :    str
-              The HTTP posting body
-    Returns
-    -------
-    dict
-        dummy dict, serves no purpose other than keeping to APIs
-    """
-    print("################################")
-    print("#            dryrun            #")
-    print("################################")
-    print("             ", method)
-    print("################################")
-    print("    ", url)
-    if headers is not None:
-        print("########### HEADERS ############")
-        for key in headers:
-            print(key, ":", headers[key])
-    if body is not None:
-        print("############ BODY ##############")
-        print(body)
-        print("################################")
-    return {"dryrun": True}
-
-
 _FLUREEQLQUERY_ENDPOINT_PERMISSIONS = {
     'query': {
         'permitted': {"select", "selectOne", "selectDistinct", "from", "where", "block", "prefixes", "vars", "opts"},
@@ -295,21 +260,18 @@ class _UnsignedGetter:
         FlureeHttpError
             If the server returns something different than a 200 OK status
         """
-        if self.session:
-            if self.ssl_verify_disabled:
-                async with self.session.get(self.url, ssl=False) as resp:
-                    if resp.status != 200:
-                        raise FlureeHttpError(await resp.text(), resp.status)
-                    response = await resp.text()
-                    return json.loads(response)
-            else:
-                async with self.session.get(self.url) as resp:
-                    if resp.status != 200:
-                        raise FlureeHttpError(await resp.text(), resp.status)
-                    response = await resp.text()
-                    return json.loads(response)
+        if self.ssl_verify_disabled:
+            async with self.session.get(self.url, ssl=False) as resp:
+                if resp.status != 200:
+                    raise FlureeHttpError(await resp.text(), resp.status)
+                response = await resp.text()
+                return json.loads(response)
         else:
-            return _dryrun("GET", self.url, None, None)
+            async with self.session.get(self.url) as resp:
+                if resp.status != 200:
+                    raise FlureeHttpError(await resp.text(), resp.status)
+                response = await resp.text()
+                return json.loads(response)
 
     async def ready(self):
         """Redo get untill ready condition gets met"""
@@ -383,27 +345,24 @@ class _SignedPoster:
         FlureeHttpError
             When Fluree server returns a status code other than 200
         """
-        if self.session:
-            if self.ssl_verify_disabled:
-                async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
-                    if resp.status != 200:
-                        raise FlureeHttpError(await resp.text(), resp.status)
-                    data = await resp.text()
-                    try:
-                        return json.loads(data)
-                    except json.decoder.JSONDecodeError:
-                        return data
-            else:
-                async with self.session.post(self.url, data=body, headers=headers) as resp:
-                    if resp.status != 200:
-                        raise FlureeHttpError(await resp.text(), resp.status)
-                    data = await resp.text()
-                    try:
-                        return json.loads(data)
-                    except json.decoder.JSONDecodeError:
-                        return data
+        if self.ssl_verify_disabled:
+            async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
+                if resp.status != 200:
+                    raise FlureeHttpError(await resp.text(), resp.status)
+                data = await resp.text()
+                try:
+                    return json.loads(data)
+                except json.decoder.JSONDecodeError:
+                    return data
         else:
-            return json.loads(_dryrun("POST", self.url, headers, body))
+            async with self.session.post(self.url, data=body, headers=headers) as resp:
+                if resp.status != 200:
+                    raise FlureeHttpError(await resp.text(), resp.status)
+                data = await resp.text()
+                try:
+                    return json.loads(data)
+                except json.decoder.JSONDecodeError:
+                    return data
 
     async def __call__(self, **kwargs):
         """Invoke post API
@@ -572,8 +531,7 @@ class _DbFunctor:
                                self.client.https,
                                self.client.ssl_verify,
                                sig_validity,
-                               sig_fuel,
-                               self.client.session is None)
+                               sig_fuel)
 
 
 class FlureeClient:
@@ -586,8 +544,7 @@ class FlureeClient:
                  https=False,
                  ssl_verify=True,
                  sig_validity=120,
-                 sig_fuel=1000,
-                 dryrun=False):
+                 sig_fuel=1000):
         """Constructor
 
         Parameters
@@ -608,8 +565,6 @@ class FlureeClient:
                    Validity in seconda of the signature.
         sig_fuel : int
                    Not sure what this is for, consult FlureeDB documentation for info.
-        dryrun : bool
-                  Don't use HTTP, simply print queries/transactions instead
 
         Raises
         ------
@@ -629,8 +584,7 @@ class FlureeClient:
         if masterkey and not auth_address or auth_address and not masterkey:
             raise FlureeHalfCredentials("masterkey and auth_address should either both be specified, or neither")
         self.session = None
-        if not dryrun:
-            self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession()
         self.known_endpoints = set(["dbs",
                                     "new_db",
                                     "delete_db",
@@ -814,8 +768,7 @@ class _FlureeDbClient:
                  https=False,
                  ssl_verify=True,
                  sig_validity=120,
-                 sig_fuel=1000,
-                 dryrun=False):
+                 sig_fuel=1000):
         """Constructor
 
         Parameters
@@ -838,8 +791,6 @@ class _FlureeDbClient:
                    Validity in seconda of the signature.
         sig_fuel : int
                    Not sure what this is for, consult FlureeDB documentation for info.
-        dryrun : bool
-                 Don't use HTTP, simply print queries/transactions instead
         """
         self.database = database
         self.host = host
@@ -853,6 +804,7 @@ class _FlureeDbClient:
         self.monitor["rewind"] = 0
         self.monitor["on_block_processed"] = None
         self.monitor["predicate_map"] = {}
+        self.monitor["predicate_map_multi"] = {}
         self.monitor["predicate_map_block"] = 0
         self.monitor["lastblock_instant"] = None
         self.monitor["instant_monitors"] = []
@@ -862,8 +814,7 @@ class _FlureeDbClient:
         if privkey and auth_address:
             self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
         self.session = None
-        if not dryrun:
-            self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession()
         self.known_endpoints = set(["snapshot",
                                     "list_snapshots",
                                     "export",
@@ -1040,17 +991,23 @@ class _FlureeDbClient:
         """
         if block is not None:
             if self.monitor["predicate_map_block"] != block:
-                predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate", block=block)
+                predicates = await self.flureeql.query(select=["name", "multi"], ffrom="_predicate", block=block)
                 self.monitor["predicate_map_block"] = block
             else:
                 predicates = None
         else:
-            predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate")
+            predicates = await self.flureeql.query(select=["name","multi"], ffrom="_predicate")
         if predicates is not None:
             predicate = {}
+            is_multi = {}
             for pred in predicates:
                 predicate[pred["_id"]] = pred["name"]
+                if "multi" in pred:
+                    is_multi[pred["name"]] = pred["multi"]
+                else:
+                    is_multi[pred["name"]] = False
             self.monitor["predicate_map"] = predicate
+            self.monitor["predicate_map_multi"] = is_multi
 
     async def _find_start_block(self):
         """Find the start block
@@ -1252,22 +1209,23 @@ class _FlureeDbClient:
             for tmp_id in tempids:
                 real_id = tempids[tmp_id]
                 counters = {}
-                for operation in operations:
-                    if isinstance(operation, dict) and "_id" in operation:
-                        if isinstance(operation["_id"], str):
-                            if operation["_id"] == tmp_id:
-                                obj_tx[real_id] = operation
-                            if operation["_id"] not in counters:
-                                counters[operation["_id"]] = 0
-                            counters[operation["_id"]] += 1
-                            altname = operation["_id"] + "$" + str(counters[operation["_id"]])
-                            if altname == tmp_id:
-                                obj_tx[real_id] = operation
-                        elif isinstance(operation["_id"], list):
-                            if len(operation["_id"]) == 2:
-                                txid = '["' + operation["_id"][0] + '" "' + operation["_id"][1] + '"]'
-                                if txid == tmp_id:
+                if isinstance(real_id, int):
+                    for operation in operations:
+                        if isinstance(operation, dict) and "_id" in operation:
+                            if isinstance(operation["_id"], str):
+                                if operation["_id"] == tmp_id:
                                     obj_tx[real_id] = operation
+                                if operation["_id"] not in counters:
+                                    counters[operation["_id"]] = 0
+                                counters[operation["_id"]] += 1
+                                altname = operation["_id"] + "$" + str(counters[operation["_id"]])
+                                if altname == tmp_id:
+                                    obj_tx[real_id] = operation
+                            elif isinstance(operation["_id"], list):
+                                if len(operation["_id"]) == 2:
+                                    txid = '["' + operation["_id"][0] + '" "' + operation["_id"][1] + '"]'
+                                    if txid == tmp_id:
+                                        obj_tx[real_id] = operation
         if len(operations) == 1:
             obj_tx[""] = operations[0]
         for operation in operations:
@@ -1378,11 +1336,15 @@ class _FlureeDbClient:
             operation = obj_tx[""]
         has_true = False
         has_false = False
+        has_multi = False
         for flake in obj:
             if flake[4]:
                 has_true = True
             else:
                 has_false = True
+            if flake[1] in self.monitor["predicate_map_multi"]:
+                if self.monitor["predicate_map_multi"][flake[1]]:
+                    has_multi = True
         if self.monitor["always_query_object"]:
             previous = await self.flureeql.query(select=["*"], ffrom=obj[0][0], block=blockno-1)
             if previous:
@@ -1401,14 +1363,17 @@ class _FlureeDbClient:
                 action = "delete"
             else:
                 action = "update"
-        if operation and "_action" in operation and operation["_action"] != "upsert":
+        if operation and "_action" in operation and operation["_action"] != "upsert" and not has_multi:
             action = operation["_action"]
         if action is None and has_true and has_false:
             action = "update"
         if action is None and operation and "_id" in operation and isinstance(operation["_id"], str):
             action = "insert"
         if action is None and operation and has_false and not has_true:
-            action = "delete"
+            if len(obj) == 1 and has_multi:
+                action = "update"
+            else:
+                action = "delete"
         if action is None and has_true and not has_false:
             if blockno > 1:
                 previous = await self.flureeql.query(select=["*"], ffrom=obj[0][0], block=blockno-1)
@@ -1642,19 +1607,16 @@ class _FlureeDbClient:
                 FlureeHttpError
                     When HTTP status from fluree server is anything other than 200
                 """
-                if self.session:
-                    if self.ssl_verify_disabled:
-                        async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
-                            if resp.status != 200:
-                                raise FlureeHttpError(await resp.text(), resp.status)
-                            return await resp.text()
-                    else:
-                        async with self.session.post(self.url, data=body, headers=headers) as resp:
-                            if resp.status != 200:
-                                raise FlureeHttpError(await resp.text(), resp.status)
-                            return await resp.text()
+                if self.ssl_verify_disabled:
+                    async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
+                        if resp.status != 200:
+                            raise FlureeHttpError(await resp.text(), resp.status)
+                        return await resp.text()
                 else:
-                    return json.loads(_dryrun("POST", self.url, headers, body))
+                    async with self.session.post(self.url, data=body, headers=headers) as resp:
+                        if resp.status != 200:
+                            raise FlureeHttpError(await resp.text(), resp.status)
+                        return await resp.text()
 
             async def header_signed(self, query_body):
                 """Do a HTTP query using headers for signing
@@ -1779,9 +1741,7 @@ class _FlureeDbClient:
                 dict
                     The result from the mult-query
                 """
-                print("QUERY:", json.dumps(self.multi_query))
                 return_body = await self.stringendpoint.header_signed(self.multi_query)
-                print("RESPONSE:", return_body)
                 return json.loads(return_body)
 
         class FlureeQlEndpoint:
