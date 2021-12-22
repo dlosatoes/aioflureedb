@@ -25,4 +25,4 @@ jobs:
     - name: Analysing the code with pylint
       run: |
          pylint `ls aioflureedb/*.py|xargs`
-         pycodestyle `ls aioflureedb/*.py|xargs`
+         pycodestyle --max-line-length=128 `ls aioflureedb/*.py|xargs`
