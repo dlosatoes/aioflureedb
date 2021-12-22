@@ -7,6 +7,7 @@ For the future, a tighter integration is desired.
 """
 import json
 import os
+# pylint: disable=unspecified-encoding
 AIOFLUREEDB_HAS_JSONATA = True
 try:
     from pyjsonata import jsonata

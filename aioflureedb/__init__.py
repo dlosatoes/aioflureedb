@@ -248,7 +248,8 @@ class _FlureeQlQuery:
 
         Parameters
         ----------
-        obj : Complete FlureeQl query object.
+        obj: dict 
+            Complete FlureeQl query object.
 
         Returns
         -------
@@ -1649,7 +1650,7 @@ class _FlureeDbClient:
 
                 Parameters
                 ----------
-                query_body : dict/list/string
+                query_body : any
                        query body to sign using headers.
 
                 Returns
@@ -1670,6 +1671,8 @@ class _FlureeDbClient:
                 ----------
                 transact_obj : list
                        transaction to sign using body envelope.
+                deps: dict
+                    FlureeDb debs
 
                 Returns
                 -------
@@ -1865,6 +1868,11 @@ class _FlureeDbClient:
                 ----------
                 transaction_obj : list
                                Transaction list
+                deps: dict
+                    FlureeDb debs
+
+                do_await: bool
+                    Do we wait for the transaction to complete, or do we fire and forget?
 
                 Returns
                 -------
