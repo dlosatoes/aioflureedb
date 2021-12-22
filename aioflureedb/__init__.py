@@ -248,7 +248,7 @@ class _FlureeQlQuery:
 
         Parameters
         ----------
-        obj: dict 
+        obj: dict
             Complete FlureeQl query object.
 
         Returns
@@ -791,8 +791,8 @@ class FlureeClient:
             if network not in optionsmap:
                 optionsmap[network] = set()
             optionsmap[network].add(database)
-        for key in optionsmap:
-            yield _Network(self, key, optionsmap[key])
+        for key, item in optionsmap.items():
+            yield _Network(self, key, item)
 
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
@@ -1136,9 +1136,11 @@ class _FlureeDbClient:
             if not flake[0] in grouped:
                 grouped[flake[0]] = []
             grouped[flake[0]].append(flake)
+        # pylint: disable=consider-using-dict-items
         for obj in grouped:
             if grouped[obj][0][1].split("/")[0] == "_predicate":
                 has_predicate_updates = True
+        # pylint: enable=consider-using-dict-items
         if has_predicate_updates:
             await self._build_predicates_map(blockno)
         return grouped
