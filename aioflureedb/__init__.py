@@ -148,6 +148,7 @@ _FLUREEQLQUERY_ENDPOINT_PERMISSIONS = {
     }
 }
 
+
 class _FlureeQlSubQuery:
     """Helper class for FlureeQL multi-query syntactic sugar"""
     def __init__(self, endpoint, method):
@@ -194,6 +195,7 @@ class _FlureeQlSubQuery:
                       file=sys.stderr)
             obj[key] = value
         self.endpoint.multi_query[self.method] = obj
+
 
 class _FlureeQlQuery:
     """Helper class for FlureeQL query syntactic sugar"""
@@ -884,7 +886,14 @@ class _FlureeDbClient:
                                     "storage",
                                     "pw"])
         self.pw_endpoints = set(["generate", "renew", "login"])
-        self.implemented = set(["query", "flureeql", "block", "command", "ledger_stats", "list_snapshots", "snapshot", "multi_query"])
+        self.implemented = set(["query",
+                                "flureeql",
+                                "block",
+                                "command",
+                                "ledger_stats",
+                                "list_snapshots",
+                                "snapshot",
+                                "multi_query"])
 
     def monitor_init(self, on_block_processed, start_block=None, rewind=0, always_query_object=False, start_instant=None):
         """Set the basic variables for a fluree block event monitor run
@@ -1718,7 +1727,6 @@ class _FlureeDbClient:
                     self.multi_query = raw
                 else:
                     self.multi_query = {}
-
 
             def __call__(self, raw=None):
                 """Invoke as function object.

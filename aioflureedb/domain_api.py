@@ -13,6 +13,7 @@ try:
     from pyjsonata import jsonata
 except ImportError:
     AIOFLUREEDB_HAS_JSONATA = False
+
     def jsonata(xform, json_data):
         """We don't want to fail on import, we only want to fail on usage
 
@@ -29,6 +30,7 @@ except ImportError:
             Raised always because of missing jsonata library
         """
         raise RuntimeError("Domain-API method uses a jsonata transformation-file while pyjsonata module is not available.")
+
 
 def _detemplate_cell(value, template):
     """Convert a "$" containing template chunk
@@ -454,7 +456,9 @@ class _TemplateCollection:
                             if AIOFLUREEDB_HAS_JSONATA or deep_fail:
                                 self.xform[template] = xform_file.read()
                             elif not ignore_xform:
-                                raise RuntimeError("API-Map uses jsonata transformation files while pyjsonata module is not available.")
+                                raise RuntimeError(
+                                    "API-Map uses jsonata transformation files while pyjsonata module is not available."
+                                )
                     except FileNotFoundError:
                         pass
                 else:
@@ -467,7 +471,9 @@ class _TemplateCollection:
                             if AIOFLUREEDB_HAS_JSONATA or deep_fail:
                                 self.xform[template] = self.apimap["xform"][template]
                             elif not ignore_xform and self.apimap["xform"][template] != "$":
-                                raise RuntimeError("API-Map uses jsonata transformation files while pyjsonata module is not available.")
+                                raise RuntimeError(
+                                    "API-Map uses jsonata transformation files while pyjsonata module is not available."
+                                )
 
     def __getattr__(self, name):
         """Automatically map the role config to valid methods
