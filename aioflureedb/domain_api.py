@@ -49,12 +49,12 @@ def _detemplate_cell(value, template):
             return value
         return template
     if isinstance(template, list):
-        rval = list()
+        rval = []
         for entry in template:
             rval.append(_detemplate_cell(value, entry))
         return rval
     if isinstance(template, dict):
-        rval2 = dict()
+        rval2 = {}
         for key in template.keys():
             rval2[key] = _detemplate_cell(value, template[key])
         return rval2
@@ -83,7 +83,7 @@ def _detemplate_object(kwargs, template):
     """
     # pylint: disable=too-many-branches
     # start off with an empty return value dict
-    rval = dict()
+    rval = {}
     # Itterate over all key/value pairs in the template
     for key, val in template.items():
         if isinstance(val, str):
@@ -116,7 +116,7 @@ def _detemplate_object(kwargs, template):
                     varname = optional_name
 
                 if varname in kwargs.keys() and isinstance(kwargs[varname], list):
-                    possible_val = list()
+                    possible_val = []
                     for value in kwargs[varname]:
                         possible_val.append(_detemplate_cell(value, val))
                 if possible_val:
@@ -153,7 +153,7 @@ def _detemplate_list(kwargs, template):
         Raised if missing kwarg key
     """
     # start of with empty list as return value
-    rval = list()
+    rval = []
     # Ifferate all source items from the list
     for operation in template:
         if isinstance(operation, str):
@@ -392,9 +392,9 @@ class _TemplateCollection:
         # Set with the templates that actually have been used. Meant for coverage metrics.
         self.used = set()
         # The templates for the role
-        self.templates = dict()
+        self.templates = {}
         # The transformation expressions for the query templates
-        self.xform = dict()
+        self.xform = {}
         # Directory where all the templates, xform files and role definitions reside
         self.apimapdir = apimapdir
         # And if used the deserialized JSON

@@ -77,7 +77,7 @@ class DbSigner:
         sig = ecdsa.Ecdsa.sign(datastring, self.private_key)
         derstring = sig.toDer(withRecoveryId=True)
         hexder = _to_hex(derstring)
-        command = dict()
+        command = {}
         command["cmd"] = datastring
         command["sig"] = hexder
         return command
@@ -113,7 +113,7 @@ class DbSigner:
         dict
             Python dict with command and signature fields.
         """
-        obj = dict()
+        obj = {}
         obj["type"] = "tx"
         obj["tx"] = transaction
         obj["db"] = self.database
@@ -161,7 +161,7 @@ class DbSigner:
         sig = ecdsa.Ecdsa.sign(signingstring, self.private_key)
         derstring = sig.toDer(withRecoveryId=True)
         hexder = _to_hex(derstring)
-        headers = dict()
+        headers = {}
         headers["Content-Type"] = "application/json"
         headers["X-Fluree-Date"] = mydate
         headers["Signature"] = \

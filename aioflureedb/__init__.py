@@ -179,7 +179,7 @@ class _FlureeQlSubQuery:
             If an unknown kwarg value is used.
 
         """
-        obj = dict()
+        obj = {}
         for key, value in kwargs.items():
             if key == "ffrom":
                 key = "from"
@@ -227,7 +227,7 @@ class _FlureeQlQuery:
         dict
             json decode result from the server.
         """
-        obj = dict()
+        obj = {}
         for key, value in kwargs.items():
             if key == "ffrom":
                 key = "from"
@@ -422,7 +422,7 @@ class _SignedPoster:
         """
         # pylint: disable=too-many-locals
         kwset = set()
-        kwdict = dict()
+        kwdict = {}
         for key, value in kwargs.items():
             if not (key in self.required or key in self.optional):
                 raise TypeError("SignedPoster got unexpected keyword argument '" + key + "'")
@@ -637,7 +637,7 @@ class FlureeClient:
                                     "new_keys"])
         self.unsigned_endpoints = set(["dbs", "health", "new_keys"])
         self.use_get = set(["health", "new_keys"])
-        self.required = dict()
+        self.required = {}
         self.required["new_db"] = set(["db_id"])
         self.required["delete_db"] = set(["db_id"])
         self.required["add_server"] = set(["server"])
@@ -783,7 +783,7 @@ class FlureeClient:
             Itteratable object with databases per network.
         """
         databases = await self.dbs()
-        optionsmap = dict()
+        optionsmap = {}
         for pair in databases:
             network = pair[0]
             database = pair[1]
@@ -843,16 +843,16 @@ class _FlureeDbClient:
         self.port = port
         self.https = https
         self.ssl_verify_disabled = False
-        self.monitor = dict()
-        self.monitor["listeners"] = dict()
+        self.monitor = {}
+        self.monitor["listeners"] = {}
         self.monitor["running"] = False
         self.monitor["next"] = None
         self.monitor["rewind"] = 0
         self.monitor["on_block_processed"] = None
-        self.monitor["predicate_map"] = dict()
+        self.monitor["predicate_map"] = {}
         self.monitor["predicate_map_block"] = 0
         self.monitor["lastblock_instant"] = None
-        self.monitor["instant_monitors"] = list()
+        self.monitor["instant_monitors"] = []
         if https and not ssl_verify:
             self.ssl_verify_disabled = True
         self.signer = None
@@ -939,7 +939,7 @@ class _FlureeDbClient:
         assert isinstance(collection, str)
         assert callable(callback)
         if collection not in self.monitor["listeners"]:
-            self.monitor["listeners"][collection] = dict()
+            self.monitor["listeners"][collection] = {}
         if "C" not in self.monitor["listeners"][collection]:
             self.monitor["listeners"][collection]["C"] = set()
         self.monitor["listeners"][collection]["C"].add(callback)
@@ -959,7 +959,7 @@ class _FlureeDbClient:
         assert isinstance(collection, str)
         assert callable(callback)
         if collection not in self.monitor["listeners"]:
-            self.monitor["listeners"][collection] = dict()
+            self.monitor["listeners"][collection] = {}
         if "D" not in self.monitor["listeners"][collection]:
             self.monitor["listeners"][collection]["D"] = set()
         self.monitor["listeners"][collection]["D"].add(callback)
@@ -980,7 +980,7 @@ class _FlureeDbClient:
         assert isinstance(collection, str)
         assert callable(callback)
         if collection not in self.monitor["listeners"]:
-            self.monitor["listeners"][collection] = dict()
+            self.monitor["listeners"][collection] = {}
         if "U" not in self.monitor["listeners"][collection]:
             self.monitor["listeners"][collection]["U"] = set()
         self.monitor["listeners"][collection]["U"].add(callback)
@@ -1037,7 +1037,7 @@ class _FlureeDbClient:
         else:
             predicates = await self.flureeql.query(select=["id", "name"], ffrom="_predicate")
         if predicates is not None:
-            predicate = dict()
+            predicate = {}
             for pred in predicates:
                 predicate[pred["_id"]] = pred["name"]
             self.monitor["predicate_map"] = predicate
@@ -1123,7 +1123,7 @@ class _FlureeDbClient:
             Raised when an unknown predicate id is detected.
         """
         has_predicate_updates = False
-        grouped = dict()
+        grouped = {}
         for flake in block_data[0]["flakes"]:
             predno = flake[1]
             # Patch numeric predicates to textual ones.
@@ -1133,7 +1133,7 @@ class _FlureeDbClient:
                 raise FlureeUnexpectedPredicateNumber("Need a restart after new predicates are added to the database")
             # Group the flakes together by object.
             if not flake[0] in grouped:
-                grouped[flake[0]] = list()
+                grouped[flake[0]] = []
             grouped[flake[0]].append(flake)
         for obj in grouped:
             if grouped[obj][0][1].split("/")[0] == "_predicate":
@@ -1235,11 +1235,11 @@ class _FlureeDbClient:
             object id to operation map.
         """
         # pylint: disable=too-many-nested-blocks, too-many-branches
-        obj_tx = dict()
+        obj_tx = {}
         if tempids:
             for tmp_id in tempids:
                 real_id = tempids[tmp_id]
-                counters = dict()
+                counters = {}
                 for operation in operations:
                     if isinstance(operation, dict) and "_id" in operation:
                         if isinstance(operation["_id"], str):
@@ -1320,8 +1320,8 @@ class _FlureeDbClient:
             await self._build_predicates_map(blockno)
             grouped = await self._group_block_flakes(block_data, blockno)
         # Distill new ones using _tx/tempids
-        obj_tx = dict()
-        block_meta = dict()
+        obj_tx = {}
+        block_meta = {}
         for obj in grouped:
             transactions = None
             tempids = None
@@ -1701,15 +1701,33 @@ class _FlureeDbClient:
                 ----------
                 client: object
                         The wrapping _FlureeDbClient
+
                 ssl_verify_disabled: bool
                     When using https, don't validata ssl certs.
+
                 raw: dict
                     The whole raw multiquery
                 """
                 self.stringendpoint = _StringEndpoint("multi_query", client, ssl_verify_disabled)
-                self.multi_query = dict()
+                if raw:
+                    self.multi_query = raw
+                else:
+                    self.multi_query = {}
+
 
             def __call__(self, raw=None):
+                """Invoke as function object.
+
+                Parameters
+                ----------
+                raw: dict
+                    The whole raw multiquery
+
+                Returns
+                -------
+                FlureeQlEndpointMulti
+                    Pointer to self
+                """
                 if raw is not None:
                     self.multi_query = raw
                 return self
