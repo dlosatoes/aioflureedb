@@ -283,11 +283,11 @@ class _UnsignedGetter:
                 obj = await self()
                 if obj[self.ready_field]:
                     return
-            except FlureeHttpError:
-                pass
+            except FlureeHttpError as ex:
+                print(ex)
             except aiohttp.client_exceptions.ClientConnectorError:
                 pass
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(2)
 
 
 class _SignedPoster:
@@ -505,15 +505,13 @@ class _DbFunctor:
         """
         return self.database
 
-    def __call__(self, privkey=None, auth_address=None, sig_validity=120, sig_fuel=1000):
+    def __call__(self, privkey=None, sig_validity=120, sig_fuel=1000):
         """Invoke functor
 
         Parameters
         ----------
         privkey : string
                   Private key for the specific DB.
-        auth_address : string
-                  Auth ID belonging with the privkey
         sig_validity : int
                        Validity in seconda of signatures.
         sig_fuel : int
@@ -524,7 +522,6 @@ class _DbFunctor:
             FlureeClient derived client for a specific DB
         """
         return _FlureeDbClient(privkey,
-                               auth_address,
                                self.database,
                                self.client.host,
                                self.client.port,
@@ -538,7 +535,6 @@ class FlureeClient:
     """Basic asynchonous client for FlureeDB for non-database specific APIs"""
     def __init__(self,
                  masterkey=None,
-                 auth_address=None,
                  host="localhost",
                  port=8080,
                  https=False,
@@ -551,8 +547,6 @@ class FlureeClient:
         ----------
         masterkey : string
                   Hex or base58 encoded signing key
-        auth_address : string
-                       key-id of the signing key
         host : string
                    hostname of the FlureeDB server. Defaults to localhost.
         port : int
@@ -566,10 +560,6 @@ class FlureeClient:
         sig_fuel : int
                    Not sure what this is for, consult FlureeDB documentation for info.
 
-        Raises
-        ------
-        FlureeHalfCredentials
-            If masterkey is specified but auth_address isn't, or the other way around.
         """
         self.host = host
         self.port = port
@@ -579,10 +569,8 @@ class FlureeClient:
         if https and not ssl_verify:
             self.ssl_verify_disabled = True
         self.signer = None
-        if masterkey and auth_address:
-            self.signer = DbSigner(masterkey, auth_address, None, sig_validity, sig_fuel)
-        if masterkey and not auth_address or auth_address and not masterkey:
-            raise FlureeHalfCredentials("masterkey and auth_address should either both be specified, or neither")
+        if masterkey:
+            self.signer = DbSigner(masterkey, None, sig_validity, sig_fuel)
         self.session = None
         self.session = aiohttp.ClientSession()
         self.known_endpoints = set(["dbs",
@@ -761,7 +749,6 @@ class _FlureeDbClient:
     """Basic asynchonous client for FlureeDB representing a particular database on FlureeDB"""
     def __init__(self,
                  privkey,
-                 auth_address,
                  database,
                  host="localhost",
                  port=8080,
@@ -775,8 +762,6 @@ class _FlureeDbClient:
         ----------
         privkey : string
                   Hex or base58 encoded signing key
-        auth_address : string
-                       key-id of the signing key
         database : string
                    net/db string of the flureeDB database
         host : string
@@ -811,8 +796,8 @@ class _FlureeDbClient:
         if https and not ssl_verify:
             self.ssl_verify_disabled = True
         self.signer = None
-        if privkey and auth_address:
-            self.signer = DbSigner(privkey, auth_address, database, sig_validity, sig_fuel)
+        if privkey:
+            self.signer = DbSigner(privkey, database, sig_validity, sig_fuel)
         self.session = None
         self.session = aiohttp.ClientSession()
         self.known_endpoints = set(["snapshot",
@@ -1496,8 +1481,11 @@ class _FlureeDbClient:
                     ffrom="_collection"
                 )
                 return
-            except FlureeHttpError:
-                await asyncio.sleep(0.1)
+            except FlureeHttpError as ex:
+                result = json.loads(ex.args[0])
+                if result["error"] == "db/invalid-auth":
+                    raise ex
+                await asyncio.sleep(2)
 
     async def __aexit__(self, exc_type, exc, traceback):
         await self.close_session()

@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Low level signing library for FlureeDB signatures"""
 import json
+from enum import Enum
 import random
 import time
 from time import mktime
@@ -31,18 +32,54 @@ def _to_hex(x):
     return "".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 
+class BlockChain(Enum):
+  BITCOIN = 1
+  FLUREEDB = 2
+
+_net_id_map = {
+  BlockChain.BITCOIN: b"\x00",
+  BlockChain.FLUREEDB: b'\x0f\x02'
+}
+
+def pubkey_to_address(pubkey, chain):
+    """Get FlureeDB address from pubkey
+
+    NOTE: This functionality should probably (mostly) be in the ellipticcurve library.
+
+    Parameters
+    ----------
+    pubkey : ellipticcurve.publicKey.PublicKey
+             ECDSA pubkey
+
+    Returns
+    -------
+    string
+        Base58 encoded FlureeDB address
+    """
+    x = pubkey.point.x.to_bytes(32,byteorder='big')
+    yred = (2 + pubkey.point.y % 2).to_bytes(1,byteorder='big')
+    key = yred + x
+    hash1 = hashlib.sha256()
+    hash2 = hashlib.new('ripemd160')
+    hash1.update(key)
+    hash2.update(hash1.digest())
+    core = _net_id_map[chain] + hash2.digest()
+    hash3 = hashlib.sha256()
+    hash4 = hashlib.sha256()
+    hash3.update(core)
+    hash4.update(hash3.digest())
+    return base58.b58encode(core + hash4.digest()[:4]).decode()
+
 class DbSigner:
     """Low level signer class for signing FlureeDB transactions and queries"""
     # pylint: disable=too-many-arguments
-    def __init__(self, privkey, address, database, validity=120, fuel=1000):
+    def __init__(self, privkey, database, validity=120, fuel=1000):
         """Constructor for DbSigner
 
         Parameters
         ----------
         privkey : string
                   Hex or base58 encoded signing key.
-        address : string
-                  Key-id of the signing key.
         database : string
                    Network/Db string for the database to use.
         validity: int
@@ -56,7 +93,7 @@ class DbSigner:
         # self.private_key = privateKey.PrivateKey.fromString(bytes.fromhex(privkey))
         self.private_key = privateKey.PrivateKey.fromString(privkey)
         self.public_key = self.private_key.publicKey()
-        self.auth_id = address
+        self.auth_id = pubkey_to_address(self.public_key, BlockChain.FLUREEDB)
         self.database = database
         self.validity = validity
         self.fuel = fuel

@@ -9,7 +9,7 @@ To use the library, first some asyncio boilerplate.
 import asyncio
 import aioflureedb
 
-async def fluree_main(privkey, addr):
+async def fluree_main(privkey):
     ...
 
 PKEY = "3f9813dced3eebfd207c2a1f546d46f721731daf6155e1c9062d1f183bdb7159"
@@ -23,36 +23,28 @@ LOOP.run_until_complete(fluree_main(PKEY, ADDRESS))
 The first thing that is needed in the async main is the creation of a FlureeClient. The default client uses the localhost FlureeDB on port 8080.
 
 ```python
-async def fluree_main(privkey, addr):
+async def fluree_main(privkey):
    async with  aioflureedb.FlureeClient() as flureeclient:
       ...
 ```
 
 In the 0.1 version of the API, all supported signed operations are on an existing database, so the below isn't usefull yet, but for the importance of a stable API, you can provide a private key and key id. These will be used when non-existing-db related signed operations get implemented (new\_db, delete\_db, add\_server, remove\_server).
 ```python
-async def fluree_main(masterkey=privkey, addr):
-    async with  aioflureedb.FlureeClient(masterkey=privkey, auth_addressaddr) as flureeclient:
+async def fluree_main(masterkey=privkey):
+    async with  aioflureedb.FlureeClient(masterkey=privkey) as flureeclient:
        ...
 ```
 
 There are some optional arguments to the constructor of the FlureeClient.
 ```python
-async def fluree_main(privkey, addr):
+async def fluree_main(privkey):
     async with aioflureedb.FlureeClient(masterkey=privkey,
-                                        auth_address=addr,
                                         host="fluree.demo.com",
                                         port=443,
                                         https=True,
                                         ssl_verify=False,
                                         sig_validity=600,
                                         sig_fuel=4321) as flureeclient:
-       ...
-```
-
-For debugging purposes, the *dryrun* option will print the queries and transactions instead of posting them to the fluree server.
-```python
-async def fluree_main(privkey, addr):
-    async with aioflureedb.FlureeClient(privkey, addr, dryrun=True) as flureeclient:
        ...
 ```
 
@@ -84,7 +76,7 @@ Once we have a FlureeClient, we can use it to iterate over the avilable networks
 ```python
     async for network in flureeclient:
         for db in network:
-            database = db(privkey, addr)
+            database = db(privkey)
             ...
 ```
 
@@ -110,10 +102,9 @@ Or if we already know the database we need, we can use square bracket notation.
 
 By default, the signatures for a single database will use the parameters of the FlureeClient. We can overrule two of them though.
 ```python
-async def fluree_main(privkey, addr):
+async def fluree_main(privkey):
     ...
     async with db(privkey,
-                  addr,
                   sig_validity=600,
                   sig_fuel=4321) as database:
         ...
@@ -122,21 +113,21 @@ async def fluree_main(privkey, addr):
 
 It is important to note that the signing key used for things like database creation and that used for transacting with or querying the database most likely will not be the same.
 ```python
-async def fluree_main(privkey1, addr1, privkey2, addr2):
-    async with aioflureedb.FlureeClient(privkey1, addr1) as flureeclient:
+async def fluree_main(privkey1, privkey2):
+    async with aioflureedb.FlureeClient(privkey1) as flureeclient:
         network = await flureeclient["dev"]
         db = network["main"]
-    async with db(privkey2, addr2) as database:
+    async with db(privkey2) as database:
        ...
 ```
 
 Or for convenience:
 
 ```python
-async def fluree_main(privkey1, addr1, privkey2, addr2):
-    async with aioflureedb.FlureeClient(privkey1, addr1) as flureeclient:
+async def fluree_main(privkey1, privkey2):
+    async with aioflureedb.FlureeClient(privkey1) as flureeclient:
         db = await flureeclient["dev/main"]
-    async with db(privkey2, addr2) as database:
+    async with db(privkey2) as database:
         ...
 ```
 
@@ -253,11 +244,11 @@ If you want to access a database directly after creating it, please note that wh
 
 ```python
     ..
-    async with  FlureeClient(privkey, addr, port=8090) as flureeclient:
+    async with  FlureeClient(privkey, port=8090) as flureeclient:
         await flureeclient.health.ready()
         await flureeclient.new_db(db_id=semi_unique_db)
         db = await flureeclient[semi_unique_db]
-    async with db(privkey, addr) as database:
+    async with db(privkey) as database:
         await database.ready()
     ..
 ```
@@ -436,7 +427,7 @@ Inside of the database session we create a FlureeDomainAPI using the [apimap](ap
 
 ```python
 ...
-    async with db(privkey, addr) as database:
+    async with db(privkey) as database:
         full_api = aioflureedb.FlureeDomainAPI("./api_maps", database)
         role_api = full_api.get_api_by_role("demo_role")
 ``` 

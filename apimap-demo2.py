@@ -3,7 +3,7 @@ import sys
 import asyncio
 import aioflureedb
 
-async def domain_api_demo(key, addr):
+async def domain_api_demo(key):
     print("Connecting to FlureeDB")
     async with aioflureedb.FlureeClient(port=8090) as flureeclient:
         print("Waiting till Fluree is ready")
@@ -11,7 +11,7 @@ async def domain_api_demo(key, addr):
         print("Looking up database")
         db = await flureeclient["dla/base"]
     print("Opening database")
-    async with db(key, addr) as database:
+    async with db(key) as database:
         print("Instantiating domain API")
         domain_api = aioflureedb.FlureeDomainAPI("./api_maps", database)
         print("Selecting role")
@@ -38,10 +38,9 @@ async def domain_api_demo(key, addr):
         response = await role.get_demo_users()
         print(response)
 
-if len(sys.argv) >= 3:
+if len(sys.argv) >= 2:
     key = sys.argv[1]
-    addr = sys.argv[2]
     LOOP = asyncio.get_event_loop()
-    LOOP.run_until_complete(domain_api_demo(key, addr))
+    LOOP.run_until_complete(domain_api_demo(key))
 else:
-    print("Provide key and adress")
+    print("Provide key")
