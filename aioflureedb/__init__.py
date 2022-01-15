@@ -1472,7 +1472,13 @@ class _FlureeDbClient:
                     raise RuntimeError("Too many errors from ledger_stats call")
 
     async def ready(self):
-        """Awaitable that polls the database untill the schema contains collections"""
+        """Awaitable that polls the database untill the schema contains collections
+        
+        Raises
+        ------
+        FlureeHttpError
+            When the error from FlureeDB is db/invalid-auth
+        """
         while True:
             try:
 
