@@ -44,13 +44,13 @@ class BlockChain(Enum):
 
 
 _net_id_map = {
-  BlockChain.BITCOIN: b"\x00",  
+  BlockChain.BITCOIN: b"\x00",
   BlockChain.FLUREEDB: b"\x0f\x02",
   BlockChain.DASH: b"\x4c",
-  Blockchain.DOGECOIN: b"\x1e",
-  Blockchain.LITECOIN: b"\x30",
-  Blockchain.NAMECOIN: b"\x34",
-  Blockchain.ZCASH: b"\x1c\xb8"
+  BlockChain.DOGECOIN: b"\x1e",
+  BlockChain.LITECOIN: b"\x30",
+  BlockChain.NAMECOIN: b"\x34",
+  BlockChain.ZCASH: b"\x1c\xb8"
 }
 
 
@@ -63,6 +63,8 @@ def pubkey_to_address(pubkey, chain):
     ----------
     pubkey : ellipticcurve.publicKey.PublicKey
              ECDSA pubkey
+    chain : BlockChain
+             The blockchain we are calculating the address for
 
     Returns
     -------
