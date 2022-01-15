@@ -1473,7 +1473,7 @@ class _FlureeDbClient:
 
     async def ready(self):
         """Awaitable that polls the database untill the schema contains collections
-        
+
         Raises
         ------
         FlureeHttpError
