@@ -33,13 +33,26 @@ def _to_hex(x):
 
 
 class BlockChain(Enum):
-  BITCOIN = 1
-  FLUREEDB = 2
+    """Enum for different bitcoin like chains"""
+    BITCOIN = 1
+    FLUREEDB = 2
+    DASH = 3
+    DOGECOIN = 4
+    LITECOIN = 5
+    NAMECOIN = 6
+    ZCASH = 7
+
 
 _net_id_map = {
-  BlockChain.BITCOIN: b"\x00",
-  BlockChain.FLUREEDB: b'\x0f\x02'
+  BlockChain.BITCOIN: b"\x00",  
+  BlockChain.FLUREEDB: b"\x0f\x02",
+  BlockChain.DASH: b"\x4c",
+  Blockchain.DOGECOIN: b"\x1e",
+  Blockchain.LITECOIN: b"\x30",
+  Blockchain.NAMECOIN: b"\x34",
+  Blockchain.ZCASH: b"\x1c\xb8"
 }
+
 
 def pubkey_to_address(pubkey, chain):
     """Get FlureeDB address from pubkey
