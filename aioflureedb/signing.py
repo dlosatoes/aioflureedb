@@ -71,8 +71,8 @@ def pubkey_to_address(pubkey, chain):
     string
         Base58 encoded FlureeDB address
     """
-    x = pubkey.point.x.to_bytes(32,byteorder='big')
-    yred = (2 + pubkey.point.y % 2).to_bytes(1,byteorder='big')
+    x = pubkey.point.x.to_bytes(32, byteorder='big')
+    yred = (2 + pubkey.point.y % 2).to_bytes(1, byteorder='big')
     key = yred + x
     hash1 = hashlib.sha256()
     hash2 = hashlib.new('ripemd160')
@@ -84,6 +84,7 @@ def pubkey_to_address(pubkey, chain):
     hash3.update(core)
     hash4.update(hash3.digest())
     return base58.b58encode(core + hash4.digest()[:4]).decode()
+
 
 class DbSigner:
     """Low level signer class for signing FlureeDB transactions and queries"""
