@@ -110,6 +110,14 @@ _FLUREEQLQUERY_ENDPOINT_PERMISSIONS = {
     'snapshot': {
         'permitted': {},
         'depricated': {}
+    },
+    'reindex': {
+        'permitted': {},
+        'depricated': {}
+    },
+    'history': {
+        'permitted': {"history", "block", "showAuth"},
+        'depricated': {}
     }
 }
 
@@ -579,7 +587,9 @@ class FlureeClient:
                                     "add_server",
                                     "remove_server",
                                     "health",
-                                    "new_keys"])
+                                    "new_keys",
+                                    "sub",
+                                    "nw_state"])
         self.unsigned_endpoints = set(["dbs", "health", "new_keys"])
         self.use_get = set(["health", "new_keys"])
         self.required = {}
@@ -593,7 +603,6 @@ class FlureeClient:
                                 "health",
                                 "new_db",
                                 "delete_db",
-                                "new_keys",
                                 "add_server",
                                 "remove_server"])
 
@@ -811,6 +820,7 @@ class _FlureeDbClient:
                                     "transact",
                                     "graphql",
                                     "sparql",
+                                    "sql",
                                     "command",
                                     "reindex",
                                     "hide",
@@ -829,7 +839,9 @@ class _FlureeDbClient:
                                 "ledger_stats",
                                 "list_snapshots",
                                 "snapshot",
-                                "multi_query"])
+                                "multi_query",
+                                "history",
+                                "reindex"])
 
     def monitor_init(self, on_block_processed, start_block=None, rewind=0, always_query_object=False, start_instant=None):
         """Set the basic variables for a fluree block event monitor run
