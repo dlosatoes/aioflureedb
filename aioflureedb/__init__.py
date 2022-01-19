@@ -834,6 +834,8 @@ class _FlureeDbClient:
         self.pw_endpoints = set(["generate", "renew", "login"])
         self.implemented = set(["query",
                                 "flureeql",
+                                "sql",
+                                "sparql",
                                 "block",
                                 "command",
                                 "ledger_stats",
@@ -1624,7 +1626,7 @@ class _FlureeDbClient:
                             raise FlureeHttpError(await resp.text(), resp.status)
                         return await resp.text()
 
-            async def header_signed(self, query_body):
+            async def header_signed(self, query_body, contenttype = "application/json"):
                 """Do a HTTP query using headers for signing
 
                 Parameters
@@ -1641,7 +1643,7 @@ class _FlureeDbClient:
                     body, headers, _ = self.signer.sign_query(query_body, querytype=self.api_endpoint)
                 else:
                     body = json.dumps(query_body, indent=4, sort_keys=True)
-                    headers = {"Content-Type": "application/json"}
+                    headers = {"Content-Type": contenttype}
                 return await self._post_body_with_headers(body, headers)
 
             async def body_signed(self, transact_obj, deps=None):
@@ -1899,6 +1901,38 @@ class _FlureeDbClient:
                 return_body = await self.stringendpoint.empty_post_unsigned()
                 return json.loads(return_body)
 
+        class StringQueryEndpoint:
+            """Endpoint for low level string querying (sql/sparql endpoints)"""
+            def __init__(self, endpoint, client, ssl_verify_disabled=False):
+                """Constructor
+
+                Parameters
+                ----------
+                endpoint: string
+                        Name of the endpoint
+                client: object
+                        The wrapping _FlureeDbClient
+                ssl_verify_disabled: bool
+                        When using https, don't validata ssl certs.
+                """
+                self.stringendpoint = _StringEndpoint(endpoint, client, ssl_verify_disabled)
+
+            async def __call__(self, query_string):
+                """Send request to ledger-stats endpoint and retrieve result
+
+                Parameters
+                ----------
+                query : string
+                        Query in the proper query language (sql or sparql depending on endpoint name)
+
+                Returns
+                -------
+                dict
+                    json decode result from the server.
+                """
+                return_body = await self.stringendpoint.header_signed(query_string)
+                return json.loads(return_body)
+
         if api_endpoint not in self.known_endpoints:
             raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
         if api_endpoint not in self.implemented:
@@ -1911,4 +1945,6 @@ class _FlureeDbClient:
             return FlureeQlEndpointMulti(self, self.ssl_verify_disabled)
         if api_endpoint == 'ledger_stats':
             return LedgerStatsEndpoint(self, self.ssl_verify_disabled)
+        if api_endpoint in ["sql", "sparql"]:
+            return StringQueryEndpoint(api_endpoint, self, self.ssl_verify_disabled) 
         return FlureeQlEndpoint(api_endpoint, self, self.ssl_verify_disabled)

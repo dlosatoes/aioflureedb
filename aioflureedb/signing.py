@@ -200,7 +200,10 @@ class DbSigner:
             The URI used for signing.
         """
         # pylint: disable=too-many-locals
-        body = unicodedata.normalize("NFKC", json.dumps(param, separators=(',', ':')))
+        if querytype in ["sql", "sparql"]:
+            unicodedata.normalize("NFKC", param)
+        else:
+            body = unicodedata.normalize("NFKC", json.dumps(param, separators=(',', ':')))
         uri = "/fdb/" + "-".join(querytype.split("_"))
         if self.database:
             uri = "/fdb/" + self.database + "/" + "-".join(querytype.split("_"))

@@ -1,0 +1,4 @@
+{
+    "roles": $.roles.id,
+    "predicates": $.predicates.name
+}

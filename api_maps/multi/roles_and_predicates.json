@@ -1,0 +1,14 @@
+{
+  "roles": {
+    "select": [
+      "id"
+    ],
+    "from": "_role"
+  },
+  "predicates": {
+    "select": [
+      "name"
+    ],
+    "from": "_predicate"
+  }
+}

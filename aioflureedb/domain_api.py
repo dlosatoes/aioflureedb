@@ -465,6 +465,10 @@ class _TemplateCollection:
                     if subdir in self.apimap and template in self.apimap[subdir]:
                         self.templates[template] = self.apimap[subdir][template]
                     else:
+                        print("1", subdir)
+                        print("2", self.apimap.keys())
+                        print("3", template)
+                        print("4", self.apimap[subdir].keys())
                         raise RuntimeError("Can't locate template in api map file:" + subdir + "::" + template)
                     if subdir in ["query", "multi"]:
                         if "xform" in self.apimap and template in self.apimap["xform"]:
