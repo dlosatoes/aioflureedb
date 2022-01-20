@@ -482,6 +482,9 @@ If you feel this requires priority, please [submit an issue](https://github.com/
 
 #### Todo Fluree client endpoint support
 
+* reindex          : needs documentation
+* version          : needs documentation
+* nw\_state        : needs documentation
 * delete\_db       : currently broken
 * add\_server      : untested
 * remove\_server   : untested
@@ -490,13 +493,13 @@ If you feel any of these requires priority, please [submit an issue](https://git
 
 #### Todo Database client endpoint support
 
+* multi\_query     : needs documentation
+* history          : needs documentation
+* sparql           : needs documentation
+* sql              : needs documentation
 * export
-* multi\_query
-* history
 * transact
 * graphql
-* sparql
-* reindex
 * hide
 * gen\_flakes
 * query\_with
