@@ -279,7 +279,11 @@ class _UnsignedGetter:
                 if resp.status != 200:
                     raise FlureeHttpError(await resp.text(), resp.status)
                 response = await resp.text()
-                return json.loads(response)
+                try:
+                    rval = json.loads(response)
+                except json.decoder.JSONDecodeError:
+                    rval = response
+                return rval
 
     async def ready(self):
         """Redo get untill ready condition gets met"""
@@ -589,9 +593,10 @@ class FlureeClient:
                                     "health",
                                     "new_keys",
                                     "sub",
-                                    "nw_state"])
-        self.unsigned_endpoints = set(["dbs", "health", "new_keys"])
-        self.use_get = set(["health", "new_keys"])
+                                    "nw_state",
+                                    "version"])
+        self.unsigned_endpoints = set(["dbs", "health", "new_keys", "nw_state","version"])
+        self.use_get = set(["health", "new_keys", "nw_state", "version"])
         self.required = {}
         self.required["new_db"] = set(["db_id"])
         self.required["delete_db"] = set(["db_id"])
@@ -604,7 +609,9 @@ class FlureeClient:
                                 "new_db",
                                 "delete_db",
                                 "add_server",
-                                "remove_server"])
+                                "remove_server",
+                                "nw_state",
+                                "version"])
 
     async def __aenter__(self):
         """Method for allowing 'with' constructs
