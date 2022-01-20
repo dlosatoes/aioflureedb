@@ -595,7 +595,7 @@ class FlureeClient:
                                     "sub",
                                     "nw_state",
                                     "version"])
-        self.unsigned_endpoints = set(["dbs", "health", "new_keys", "nw_state","version"])
+        self.unsigned_endpoints = set(["dbs", "health", "new_keys", "nw_state", "version"])
         self.use_get = set(["health", "new_keys", "nw_state", "version"])
         self.required = {}
         self.required["new_db"] = set(["db_id"])
@@ -1633,7 +1633,7 @@ class _FlureeDbClient:
                             raise FlureeHttpError(await resp.text(), resp.status)
                         return await resp.text()
 
-            async def header_signed(self, query_body, contenttype = "application/json"):
+            async def header_signed(self, query_body, contenttype="application/json"):
                 """Do a HTTP query using headers for signing
 
                 Parameters
