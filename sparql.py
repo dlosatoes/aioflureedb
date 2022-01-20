@@ -13,7 +13,7 @@ async def sql_demo():
     print("Opening database")
     async with db() as database:
         print("SparQl query")
-        result = await database.sparql('SELECT ?name WHERE { ?predicate fd:_predicate/name ?name })')
+        result = await database.sparql('SELECT ?name WHERE { ?predicate fd:_predicate/type "ref". ?predicate fd:_predicate/multi true. ?predicate fd:_predicate/name ?name}')
         print(result)
 
 LOOP = asyncio.get_event_loop()

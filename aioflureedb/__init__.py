@@ -1633,6 +1633,8 @@ class _FlureeDbClient:
                 ----------
                 query_body : any
                        query body to sign using headers.
+                contenttype : string
+                       Content-type of query, defaults to application/json
 
                 Returns
                 -------
@@ -1930,7 +1932,7 @@ class _FlureeDbClient:
                 dict
                     json decode result from the server.
                 """
-                return_body = await self.stringendpoint.header_signed(query_string)
+                return_body = await self.stringendpoint.header_signed(query_string, contenttype="text/plain")
                 return json.loads(return_body)
 
         if api_endpoint not in self.known_endpoints:
@@ -1946,5 +1948,5 @@ class _FlureeDbClient:
         if api_endpoint == 'ledger_stats':
             return LedgerStatsEndpoint(self, self.ssl_verify_disabled)
         if api_endpoint in ["sql", "sparql"]:
-            return StringQueryEndpoint(api_endpoint, self, self.ssl_verify_disabled) 
+            return StringQueryEndpoint(api_endpoint, self, self.ssl_verify_disabled)
         return FlureeQlEndpoint(api_endpoint, self, self.ssl_verify_disabled)
