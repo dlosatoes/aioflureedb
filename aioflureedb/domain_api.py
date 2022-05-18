@@ -294,7 +294,13 @@ class _AsyncExpander:
         self.database = database
 
     async def __call__(self):
-        """Return the whole transaction as a python list"""
+        """Execute transaction
+        
+        Returns
+        -------
+        dict
+            Transaction status object
+        """
         return await self.database.command.transaction(self.transaction)
 
     def __getattr__(self, name):
