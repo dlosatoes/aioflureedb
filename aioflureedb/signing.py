@@ -103,6 +103,7 @@ class DbSigner:
         fuel: int
               Not sure what this is for, consult FlureeDB documentation for info.
         """
+        assert isinstance(validity,(float,int))
         if len(privkey) != 64:
             privkey = base58.b58decode(privkey).hex()
         # Old line from 1.0.3

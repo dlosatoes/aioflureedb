@@ -295,7 +295,7 @@ class _AsyncExpander:
 
     async def __call__(self):
         """Return the whole transaction as a python list"""
-        await self.database.command.transaction(self.transaction)
+        return await self.database.command.transaction(self.transaction)
 
     def __getattr__(self, name):
         """Get a functor for adding named operators to the transaction, using a template again
