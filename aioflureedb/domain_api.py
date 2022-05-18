@@ -295,7 +295,7 @@ class _AsyncExpander:
 
     async def __call__(self):
         """Execute transaction
-        
+
         Returns
         -------
         dict
