@@ -533,7 +533,7 @@ class _DbFunctor:
          _FlureeDbClient
             FlureeClient derived client for a specific DB
         """
-        assert isinstance(sig_validity,(float,int))
+        assert isinstance(sig_validity, (float, int))
         return _FlureeDbClient(privkey,
                                self.database,
                                self.client.host,
@@ -574,7 +574,7 @@ class FlureeClient:
                    Not sure what this is for, consult FlureeDB documentation for info.
 
         """
-        assert isinstance(sig_validity,(float,int))
+        assert isinstance(sig_validity, (float, int))
         self.host = host
         self.port = port
         self.https = https
@@ -795,7 +795,7 @@ class _FlureeDbClient:
         sig_fuel : int
                    Not sure what this is for, consult FlureeDB documentation for info.
         """
-        assert isinstance(sig_validity,(float,int))
+        assert isinstance(sig_validity, (float, int))
         self.database = database
         self.host = host
         self.port = port
