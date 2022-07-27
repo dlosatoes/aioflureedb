@@ -1875,10 +1875,15 @@ class _FlureeDbClient:
                     When transaction fails
                 """
                 tid = await self.stringendpoint.body_signed(transaction_obj, deps)
-                tid = tid[1:-1]
+                if tid[0] == '"':
+                    tid = tid[1:-1]
+                else:
+                    tid = json.loads(tid)["id"]
                 if not do_await:
                     return tid
+                try_count = 0
                 while True:
+                    try_count += 1
                     status = await self.client.query.query(select=["*"], ffrom=["_tx/id", tid])
                     if status:
                         if "error" in status[0]:

@@ -21,7 +21,7 @@ else:
 
 setup(
     name='aioflureedb',
-    version='0.4.6',
+    version='0.5.1',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,
@@ -34,8 +34,7 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Libraries',
         'License :: OSI Approved :: BSD License',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
         'Operating System :: OS Independent',
         'Environment :: Other Environment'
     ],
