@@ -38,12 +38,6 @@ async def database_main(client, db, endpoint, data, key):
             return await database.block.actual_query(json.loads(data))
         if endpoint == "command":
             return await database.command.transaction(json.loads(data))
-        if endpoint == "multi_query":
-            pass
-        if endpoint == "sparql":
-            pass
-        if endpoint == "sql":
-            pass
     return "Unknown endpoint:" + str(endpoint)
 
 async def argparse_main():
@@ -135,12 +129,11 @@ async def argparse_main():
     if data is None:
         data = ""
         if args.datafile is not None:
-            if datafile == "-":
+            if args.datafile == "-":
                 inf = sys.stdin
             else:
                 inf = open(args.datafile)
             data = inf.read()
-            print(data)
     async with FlureeClient(args.masterkey,
                           args.host,
                           int(args.port),
@@ -148,10 +141,13 @@ async def argparse_main():
                           args.sslverify != "false",
                           float(args.sigvalidity),
                           float(args.sigfuel)) as client:
-        if args.subcommand == "fluree":
-            print(json.dumps(await fluree_main(client, args.endpoint, data), indent=2))
-        elif args.subcommand == "database":
-            print(json.dumps(await database_main(client, args.db, args.endpoint, data, args.masterkey), indent=2))
+        try:
+            if args.subcommand == "fluree":
+                print(json.dumps(await fluree_main(client, args.endpoint, data), indent=2))
+            elif args.subcommand == "database":
+                print(json.dumps(await database_main(client, args.db, args.endpoint, data, args.masterkey), indent=2))
+        except Exception as exp:
+            print(exp)
 
 
 LOOP = asyncio.get_event_loop()
