@@ -466,7 +466,7 @@ class _TemplateCollection:
                     try:
                         with open(xform_path) as xform_file:
                             if AIOFLUREEDB_HAS_JSONATA or deep_fail:
-                                self.xform[template] = xform_file.read()
+                                self.xform[template] = xform_file.read().rstrip("\r\n")
                             elif not ignore_xform:
                                 raise RuntimeError(
                                     "API-Map uses jsonata transformation files while pyjsonata module is not available."
