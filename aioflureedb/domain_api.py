@@ -16,7 +16,7 @@ except ImportError:
 
     class JsonataContext:
         """Dummy Context for install witout jsonata"""
-        def __init__(self, bigint_patch):
+        def __init__(self, bigint_patch, debug_print):
             pass
         def __call__(self, xform, json_data):
             """We don't want to fail on import, we only want to fail on usage
@@ -691,7 +691,7 @@ class _TemplateCollection:
 class FlureeDomainAPI:
     # pylint: disable=too-few-public-methods
     """Highest level object for encapsulating full domain API"""
-    def __init__(self, apimapdir, database=None, bigint_patch=False):
+    def __init__(self, apimapdir, database=None, bigint_patch=False, debug_print=False):
         """Constructor
 
         Parameters
@@ -709,7 +709,7 @@ class FlureeDomainAPI:
             with open(apimapdir) as mapfil:
                 self.apimap = json.load(mapfil)
         self.database = database
-        self.jsonatacontext = JsonataContext(bigint_patch=bigint_patch)
+        self.jsonatacontext = JsonataContext(bigint_patch=bigint_patch, debug_print=debug_print)
 
     def get_api_by_role(self, role):
         """Get the sub-API that is available to a given role
