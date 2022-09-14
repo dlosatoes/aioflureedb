@@ -10,26 +10,28 @@ import os
 # pylint: disable=unspecified-encoding
 AIOFLUREEDB_HAS_JSONATA = True
 try:
-    from pyjsonata import jsonata
+    from jsonata import Context as JsonataContext
 except ImportError:
     AIOFLUREEDB_HAS_JSONATA = False
 
-    def jsonata(xform, json_data):
-        """We don't want to fail on import, we only want to fail on usage
+    class JsonataContext:
+        """Dummy Context for install witout jsonata"""
+        def __call__(self, xform, json_data):
+            """We don't want to fail on import, we only want to fail on usage
 
-        Parameters
-        ----------
+            Parameters
+            ----------
 
-        xform : str
-            Transformation code
-        json_data : str
-            Source json
-        Raises
-        ------
-        RuntimeError
-            Raised always because of missing jsonata library
-        """
-        raise RuntimeError("Domain-API method uses a jsonata transformation-file while pyjsonata module is not available.")
+            xform : str
+                Transformation code
+            json_data : str
+                Source json
+            Raises
+            ------
+            RuntimeError
+                Raised always because of missing jsonata library
+            """
+            raise RuntimeError("Domain-API method uses a jsonata transformation-file while jsonata module is not available.")
 
 
 def _detemplate_cell(value, template):
@@ -332,7 +334,7 @@ class _AsyncExpander:
 class _Transformer:
     # pylint: disable=too-few-public-methods
     """Query Transformer"""
-    def __init__(self, query, xform):
+    def __init__(self, query, xform, jsonatacontext):
         """Constructor
 
         Parameters
@@ -344,6 +346,7 @@ class _Transformer:
         """
         self.query = query
         self.xform = xform
+        self.jsonatacontext = jsonatacontext
 
     def __call__(self, query_result=None):
         """Get the query as dict, or transform the query result
@@ -364,7 +367,7 @@ class _Transformer:
         # Otherwise, we transform the query result as defined in the transformation jsonata file
         if self.xform is None:
             return query_result
-        rval = jsonata(self.xform, json.dumps(query_result))
+        rval = self.jsonatacontext(self.xform, query_result)
         if rval == 'undefined':
             return None
         return json.loads(rval)
@@ -373,7 +376,7 @@ class _Transformer:
 class _TemplateCollection:
     # pylint: disable=too-few-public-methods, too-many-instance-attributes
     """The core template collection class used for role sub-APIs"""
-    def __init__(self, transactions, queries, multi, apimapdir, apimap, database):
+    def __init__(self, transactions, queries, multi, apimapdir, apimap, database, jsonatacontext):
         """Constructor
 
         Parameters
@@ -414,6 +417,7 @@ class _TemplateCollection:
         self._init_templates("transaction", transactions)
         self._init_templates("query", queries)
         self._init_templates("multi", multi)
+        self.jsonatacontext = jsonatacontext
 
     def _init_templates(self, subdir, templates):
         """Initialize the templates dicts for this role
@@ -548,7 +552,7 @@ class _TemplateCollection:
 
         class Query:
             """Query functor"""
-            def __init__(self, collection, name):
+            def __init__(self, collection, name, jsonatacontext):
                 """Constructor
 
                 Parameters
@@ -563,6 +567,7 @@ class _TemplateCollection:
                 self.xform = None
                 if name in collection.xform:
                     self.xform = collection.xform[name]
+                self.jsonatacontext = jsonatacontext
 
             def __call__(self, *args, **kwargs):
                 """Invoke
@@ -582,7 +587,7 @@ class _TemplateCollection:
                     Query object that can also transform query results.
                 """
                 query = _detemplate_object(kwargs, self.template)
-                return _Transformer(query, self.xform)
+                return _Transformer(query, self.xform, self.jsonatacontext)
 
         class AsyncQuery:
             """Query functor"""
@@ -663,11 +668,11 @@ class _TemplateCollection:
                 return Transaction(self, name, self.database)
             if name in self.multi:
                 if self.database is None:
-                    return Query(self, name)
-                return AsyncMultiQuery(Query(self, name), self.database)
+                    return Query(self, name, self.jsonatacontext)
+                return AsyncMultiQuery(Query(self, name, self.jsonatacontext), self.database)
             if self.database is None:
-                return Query(self, name)
-            return AsyncQuery(Query(self, name), self.database)
+                return Query(self, name, self.jsonatacontext)
+            return AsyncQuery(Query(self, name, self.jsonatacontext), self.database)
         raise AttributeError("No " + name + " method for role")
 
     def coverage(self):
@@ -684,7 +689,7 @@ class _TemplateCollection:
 class FlureeDomainAPI:
     # pylint: disable=too-few-public-methods
     """Highest level object for encapsulating full domain API"""
-    def __init__(self, apimapdir, database=None):
+    def __init__(self, apimapdir, database=None, bigint_patch=False):
         """Constructor
 
         Parameters
@@ -702,6 +707,7 @@ class FlureeDomainAPI:
             with open(apimapdir) as mapfil:
                 self.apimap = json.load(mapfil)
         self.database = database
+        self.jsonatacontext = JsonataContext(bigint_patch=bigint_patch)
 
     def get_api_by_role(self, role):
         """Get the sub-API that is available to a given role
@@ -737,4 +743,5 @@ class FlureeDomainAPI:
         else:
             multi = []
         return _TemplateCollection(transactions, queries, multi,
-                                   self.apimapdir, self.apimap, self.database)
+                                   self.apimapdir, self.apimap, self.database,
+                                   self.jsonatacontext)

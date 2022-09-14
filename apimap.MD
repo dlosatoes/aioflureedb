@@ -46,9 +46,13 @@ Note that xform files are optional, and are not supported on all platforms. If n
 
 ### jsonata and platform dependencies
 
-The xform files described above depend on the [pyjsonata[(https://pypi.org/project/pyjsonata/) module that unfortunately doesnt work on MS-Windows. On Linux and Docker pyjsonata works just fine. It is unknown (currently assumed it doesn't) if pyjsonata works on other platforms.  If this assumption is wrong, install pyjsonata on your system before installing aioflureedb and please notify the authors of aioflureedb they should add pyjsonata on your platform.
+The xform files described above depend on the [jsonata[(https://pypi.org/project/jsonata/) that currently is bound to the optional *domainapi*. On Linux and Docker jsonata works just fine. It is unknown (currently assumed it doesn't) if pyjsonata works on other platforms.
 
-If you install aioflureedb on a system without pyjsonata support, by default aioflureedb will throw a *RuntimeError* when loading an api-map directory. This behaviour can be changed by setting one of two environment variables:
+```sh
+pip install aioflureedb[domainapi]
+```
+
+If you install aioflureedb without *domainapi* support, by default aioflureedb will throw a *RuntimeError* when loading an api-map directory. This behaviour can be changed by setting one of two environment variables:
 
 * AIOFLUREEDB_IGNORE_XFORM : If this enviropnment variable is set to any value, the existance of xform files will get ignored as if the files werent there.
 
