@@ -372,7 +372,7 @@ class _Transformer:
         rval = self.jsonatacontext(self.xform, query_result)
         if rval == 'undefined':
             return None
-        return json.loads(rval)
+        return rval
 
 
 class _TemplateCollection:
