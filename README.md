@@ -11,6 +11,13 @@ To install run:
 python3 -m pip install aioflureedb
 ```
 
+Or if you also wish to use your own Domain-API files run:
+
+```bash
+python3 -m pip install 'aioflureedb[domainapi]'
+```
+
+
 ### API usage
 
 * [High level API](API.md)
