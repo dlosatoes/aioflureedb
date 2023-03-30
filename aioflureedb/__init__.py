@@ -4,6 +4,7 @@
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=simplifiable-if-statement
 """Basic asynchonous client library for FlureeDB"""
+from os import environ
 import sys
 import asyncio
 import json
@@ -236,7 +237,7 @@ class _FlureeQlQuery:
 
 class _UnsignedGetter:
     """Get info with a GET instead of a POST"""
-    def __init__(self, session, url, ssl_verify_disabled=False, ready=None):
+    def __init__(self, session, url, ssl_verify_disabled=False, ready=None, debug=False):
         """Constructor
 
         Parameters
@@ -249,11 +250,14 @@ class _UnsignedGetter:
               If https, don't verify ssl certs
         ready : string
               If defined, provide a ready method to wait for ready condition to become true.
+        debug : bool
+              Running in debug mode.
         """
         self.session = session
         self.url = url
         self.ssl_verify_disabled = ssl_verify_disabled
         self.ready_field = ready
+        self.debug = debug
 
     async def __call__(self):
         """Invoke the functor
@@ -268,17 +272,25 @@ class _UnsignedGetter:
         FlureeHttpError
             If the server returns something different than a 200 OK status
         """
+        if self.debug:
+            print("Unsigned GET: url =", self.url,", ssl_verify_disabled =", self.ssl_verify_disabled)
         if self.ssl_verify_disabled:
             async with self.session.get(self.url, ssl=False) as resp:
                 if resp.status != 200:
                     raise FlureeHttpError(await resp.text(), resp.status)
                 response = await resp.text()
+                if self.debug:
+                    print("Result:")
+                    print(response)
                 return json.loads(response)
         else:
             async with self.session.get(self.url) as resp:
                 if resp.status != 200:
                     raise FlureeHttpError(await resp.text(), resp.status)
                 response = await resp.text()
+                if self.debug:
+                    print("Result:")
+                    print(response)
                 try:
                     rval = json.loads(response)
                 except json.decoder.JSONDecodeError:
@@ -304,7 +316,7 @@ class _UnsignedGetter:
 
 class _SignedPoster:
     """Basic signed HTTP posting"""
-    def __init__(self, client, session, signer, url, required, optional, ssl_verify_disabled, unsigned=False):
+    def __init__(self, client, session, signer, url, required, optional, ssl_verify_disabled, unsigned=False, debug=False):
         """Constructor
 
         Parameters
@@ -325,6 +337,8 @@ class _SignedPoster:
             If https, ignore ssl certificate issues.
         unsigned : bool
             If True, don't sign posts.
+        debug : bool
+            Run in debug mode
         """
         self.client = client
         self.session = session
@@ -335,6 +349,7 @@ class _SignedPoster:
         self.unsigned = unsigned
         if self.signer is None:
             self.unsigned = True
+        self.debug = debug
         self.ssl_verify_disabled = ssl_verify_disabled
 
     async def _post_body_with_headers(self, body, headers):
@@ -357,11 +372,17 @@ class _SignedPoster:
         FlureeHttpError
             When Fluree server returns a status code other than 200
         """
+        if self.debug:
+            print("Signed POST: url =", self.url,", headers =", headers, ",ssl_verify_disabled =", self.ssl_verify_disabled)
+            print("  body = ", body)
         if self.ssl_verify_disabled:
             async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
                 if resp.status != 200:
                     raise FlureeHttpError(await resp.text(), resp.status)
                 data = await resp.text()
+                if self.debug:
+                    print("Result:")
+                    print(data)
                 try:
                     return json.loads(data)
                 except json.decoder.JSONDecodeError:
@@ -371,6 +392,9 @@ class _SignedPoster:
                 if resp.status != 200:
                     raise FlureeHttpError(await resp.text(), resp.status)
                 data = await resp.text()
+                if self.debug:
+                    print("Result:")
+                    print(data)
                 try:
                     return json.loads(data)
                 except json.decoder.JSONDecodeError:
@@ -417,7 +441,7 @@ class _SignedPoster:
         if isinstance(rval, str) and len(rval) == 64 and self.url.split("/")[-1] == "new-db" and "db_id" in kwargs:
             dbid = kwargs["db_id"]
             while True:
-                databases = await self.client.dbs()
+                databases = await self.client.ledgers()
                 for database in databases:
                     dbid2 = database[0] + "/" + database[1]
                     if dbid == dbid2:
@@ -575,6 +599,9 @@ class FlureeClient:
 
         """
         assert isinstance(sig_validity, (float, int))
+        self.debug = False
+        if environ.get("AIOFLUREEDB_DEBUG") == "TRUE":
+            self.debug=True
         self.host = host
         self.port = port
         self.https = https
@@ -592,24 +619,40 @@ class FlureeClient:
                                     "delete_db",
                                     "add_server",
                                     "remove_server",
+                                    "ledgers",
+                                    "new_ledger",
+                                    "delete_ledger",
                                     "health",
                                     "new_keys",
                                     "sub",
                                     "nw_state",
                                     "version"])
-        self.unsigned_endpoints = set(["dbs", "health", "new_keys", "nw_state", "version"])
+        self.depricated = {
+                    "dbs": "ledgers",
+                    "new_db": "new_ledger",
+                    "delete_db": "delete_ledger",
+                    "add_server": None,
+                    "remove_server": None
+                }
+        self.unsigned_endpoints = set(["dbs","ledgers","health", "new_keys", "nw_state", "version"])
         self.use_get = set(["health", "new_keys", "nw_state", "version"])
         self.required = {}
         self.required["new_db"] = set(["db_id"])
+        self.required["new_ledger"] = set(["db_id"])
         self.required["delete_db"] = set(["db_id"])
+        self.required["delete_ledger"] = set(["db_id"])
         self.required["add_server"] = set(["server"])
         self.required["delete_server"] = set(["server"])
         self.optional = {"new_db": set(["snapshot"])}
+        self.optional = {"new_ledger": set(["snapshot"])}
         self.implemented = set(["dbs",
+                                "ledgers",
                                 "new_keys",
                                 "health",
                                 "new_db",
+                                "new_ledger",
                                 "delete_db",
+                                "delete_ledger",
                                 "add_server",
                                 "remove_server",
                                 "nw_state",
@@ -669,6 +712,8 @@ class FlureeClient:
             raise AttributeError("FlureeDB has no endpoint named " + api_endpoint)
         if api_endpoint not in self.implemented:
             raise NotImplementedError("No implementation yet for " + api_endpoint)
+        if api_endpoint in self.depricated and self.depricated[api_endpoint] is not None:
+            api_endpoint = self.depricated[api_endpoint]
         secure = ""
         if self.https:
             secure = "s"
@@ -693,12 +738,12 @@ class FlureeClient:
         if api_endpoint in self.optional:
             optional = self.optional[api_endpoint]
         if signed:
-            return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled)
+            return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled, debug=self.debug)
         if use_get:
             if api_endpoint == "health":
-                return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, ready="ready")
-            return _UnsignedGetter(self.session, url, self.ssl_verify_disabled)
-        return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled, unsigned=True)
+                return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, ready="ready", debug=self.debug)
+            return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, debug=self.debug, debug=self.debug)
+        return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled, unsigned=True, debug=self.debug)
 
     async def __getitem__(self, key):
         """Square bracket operator
@@ -723,7 +768,7 @@ class FlureeClient:
             parts = key.split("/")
             key = parts[0]
             subkey = parts[1]
-        databases = await self.dbs()
+        databases = await self.ledgers()
         options = set()
         for pair in databases:
             if pair[0] == key:
@@ -745,7 +790,7 @@ class FlureeClient:
         _Network
             Itteratable object with databases per network.
         """
-        databases = await self.dbs()
+        databases = await self.ledgers()
         optionsmap = {}
         for pair in databases:
             network = pair[0]

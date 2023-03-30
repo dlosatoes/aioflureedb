@@ -1,11 +1,29 @@
+"""Main module for invoking lib with -m to run basic flureedb commandline API calls"""
 import sys
 import asyncio
 import argparse
 import json
 from . import FlureeClient
-from .domain_api import FlureeDomainAPI
+# from .domain_api import FlureeDomainAPI
 
 async def fluree_main(client, endpoint, data):
+    """main for invoking single top level flureedb API endpoint
+
+    Parameters
+    ----------
+    client: FlureeClient
+        Flureedb API client object
+    endpoint: string
+        Name of the API endpoint
+    data: string
+        Additional data
+
+    Returns
+    -------
+    str
+        response from API endpoint.
+    """
+    # pylint: disable=too-many-return-statements
     if endpoint is None:
         print("No endpoint specified, default to health")
         endpoint="health"
@@ -14,6 +32,8 @@ async def fluree_main(client, endpoint, data):
     await client.health.ready()
     if endpoint == "dbs":
         return await client.dbs()
+    if endpoint == "ledgers":
+        return await client.ledgers()
     if endpoint == "new_keys":
         return await client.new_keys()
     if endpoint == "version":
@@ -21,11 +41,35 @@ async def fluree_main(client, endpoint, data):
     if endpoint == "new_db":
         print("data: '", data , "'")
         return await client.new_db(db_id=data)
-    return "Unknown endpoint:" + str(endpoint) 
+    if endpoint == "new_ledger":
+        print("data: '", data , "'")
+        return await client.new_ledger(db_id=data)
+    return "Unknown endpoint:" + str(endpoint)
 
-async def database_main(client, db, endpoint, data, key):
+async def database_main(client, dbase, endpoint, data, key):
+    """Main for invoking DB specific FlureeDB database endpoints
+
+
+    Parameters
+    ----------
+    client: FlureeClient
+        Flureedb API client object
+    dbase: string
+        Name of the database
+    endpoint: string
+        Name of the API endpoint
+    data: string
+        Additional data
+    key: str
+        Private key
+
+    Returns
+    -------
+    str
+        response from API endpoint.
+    """
     await client.health.ready()
-    fdb = await client[db]
+    fdb = await client[dbase]
     async with fdb(key) as database:
         await database.ready()
         if endpoint == "ledger_stats":
@@ -41,6 +85,8 @@ async def database_main(client, db, endpoint, data, key):
     return "Unknown endpoint:" + str(endpoint)
 
 async def argparse_main():
+    """Arguments parsting main"""
+    # pylint: disable=too-many-locals,too-many-branches
     parsers = {}
     parsers["main"] = argparse.ArgumentParser()
     subparsers = parsers["main"].add_subparsers()
@@ -132,7 +178,7 @@ async def argparse_main():
             if args.datafile == "-":
                 inf = sys.stdin
             else:
-                inf = open(args.datafile)
+                inf = open(args.datafile, encoding="utf-8")
             data = inf.read()
     async with FlureeClient(args.masterkey,
                           args.host,
@@ -146,10 +192,9 @@ async def argparse_main():
                 print(json.dumps(await fluree_main(client, args.endpoint, data), indent=2))
             elif args.subcommand == "database":
                 print(json.dumps(await database_main(client, args.db, args.endpoint, data, args.masterkey), indent=2))
-        except Exception as exp:
+        except Exception as exp: # pylint: disable=broad-except
             print(exp)
 
 
 LOOP = asyncio.get_event_loop()
 LOOP.run_until_complete(argparse_main())
-

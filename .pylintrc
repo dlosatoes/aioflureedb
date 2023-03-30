@@ -52,7 +52,7 @@ optimize-ast=no
 # R0205 - Inheritance from object
 # R0201 - Method could be a function / no-self-use
 # C0301 - Lines to long, this is already handled by pycodestyle
-disable=R0903,R0205,R0201,C0301
+disable=R0903,R0205,C0301
 
 
 
