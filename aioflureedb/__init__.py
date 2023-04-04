@@ -425,8 +425,8 @@ class _SignedPoster:
             if not (key in self.required or key in self.optional):
                 raise TypeError("SignedPoster got unexpected keyword argument '" + key + "'")
             kwset.add(key)
-            if key == "db_id":
-                kwdict["db/id"] = value
+            if key == "db_id" or key == "ledger_id":
+                kwdict["ledger/id"] = value
             else:
                 kwdict[key] = value
         for reqkey in self.required:
@@ -437,9 +437,16 @@ class _SignedPoster:
         if not self.unsigned:
             body, headers, _ = self.signer.sign_query(kwdict)
         rval = await self._post_body_with_headers(body, headers)
-        # If this is a new-db, we need to await till it comes into existance.
-        if isinstance(rval, str) and len(rval) == 64 and self.url.split("/")[-1] == "new-db" and "db_id" in kwargs:
-            dbid = kwargs["db_id"]
+        # If this is a new-db or new-legger, we need to await till it comes into existance.
+        if (isinstance(rval, str) and len(rval) == 64 and
+                (
+                    (self.url.split("/")[-1] == "new-db" and "db_id" in kwargs) or
+                    (self.url.split("/")[-1] == "new-ledger" and "ledger_id" in kwargs)
+                )):
+            if "ledger_id" in kwargs:
+                dbid = kwargs["ledger_id"]
+            else:
+                dbid = kwargs["db_id"]
             while True:
                 databases = await self.client.ledgers()
                 for database in databases:
@@ -638,9 +645,9 @@ class FlureeClient:
         self.use_get = set(["health", "new_keys", "nw_state", "version"])
         self.required = {}
         self.required["new_db"] = set(["db_id"])
-        self.required["new_ledger"] = set(["db_id"])
+        self.required["new_ledger"] = set(["ledger_id"])
         self.required["delete_db"] = set(["db_id"])
-        self.required["delete_ledger"] = set(["db_id"])
+        self.required["delete_ledger"] = set(["ledger_id"])
         self.required["add_server"] = set(["server"])
         self.required["delete_server"] = set(["server"])
         self.optional = {"new_db": set(["snapshot"])}
@@ -742,7 +749,7 @@ class FlureeClient:
         if use_get:
             if api_endpoint == "health":
                 return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, ready="ready", debug=self.debug)
-            return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, debug=self.debug, debug=self.debug)
+            return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, debug=self.debug)
         return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled, unsigned=True, debug=self.debug)
 
     async def __getitem__(self, key):
