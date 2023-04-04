@@ -1689,16 +1689,20 @@ class _FlureeDbClient:
                     print("  body:", body)
                 if self.ssl_verify_disabled:
                     async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
+                        rval = await resp.text()
+                        if debug:
+                            print(resp.status)
+                            print("rval:", rval)
                         if resp.status != 200:
                             raise FlureeHttpError(await resp.text(), resp.status)
-                        rval = await resp.text()
                 else:
                     async with self.session.post(self.url, data=body, headers=headers) as resp:
+                        rval = await resp.text()
+                        if debug:
+                            print(resp.status)
+                            print("rval:", rval)
                         if resp.status != 200:
                             raise FlureeHttpError(await resp.text(), resp.status)
-                        rval = await resp.text()
-                if debug:
-                    print("rval:", rval)
                 return rval
 
             async def header_signed(self, query_body, contenttype="application/json"):
