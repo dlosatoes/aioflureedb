@@ -459,7 +459,7 @@ class _SignedPoster:
 
 class _Network:
     """Helper class for square bracket interface to Fluree Client"""
-    def __init__(self, flureeclient, netname, options):
+    def __init__(self, flureeclient, netname, options, debug):
         """Constructor
 
         Parameters
@@ -474,6 +474,7 @@ class _Network:
         self.client = flureeclient
         self.netname = netname
         self.options = options
+        self.debug = debug
 
     def __str__(self):
         """Cast to string
@@ -506,7 +507,7 @@ class _Network:
         database = self.netname + "/" + key
         if key not in self.options:
             raise KeyError("No such database: '" + database + "'")
-        return _DbFunctor(self.client, database)
+        return _DbFunctor(self.client, database, self.debug)
 
     def __iter__(self):
         """Iterate over databases in network
@@ -520,12 +521,12 @@ class _Network:
         """
         for key in self.options:
             database = self.netname + "/" + key
-            yield _DbFunctor(self.client, database)
+            yield _DbFunctor(self.client, database, self.debug)
 
 
 class _DbFunctor:
     """Helper functor class for square bracket interface to Fluree Client"""
-    def __init__(self, client, database):
+    def __init__(self, client, database, debug):
         """Constructor
 
         Parameters
@@ -537,6 +538,7 @@ class _DbFunctor:
         """
         self.client = client
         self.database = database
+        self.debug = debug
 
     def __str__(self):
         """Cast to string
@@ -572,7 +574,8 @@ class _DbFunctor:
                                self.client.https,
                                self.client.ssl_verify,
                                sig_validity,
-                               sig_fuel)
+                               sig_fuel,
+                               debug=self.debug)
 
 
 class FlureeClient:
@@ -782,7 +785,7 @@ class FlureeClient:
                 options.add(pair[1])
         if not bool(options):
             raise KeyError("No such network: '" + key + "'")
-        network = _Network(self, key, options)
+        network = _Network(self, key, options, self.debug)
         if subkey is None:
             return network
         return network[subkey]
@@ -806,7 +809,7 @@ class FlureeClient:
                 optionsmap[network] = set()
             optionsmap[network].add(database)
         for key, item in optionsmap.items():
-            yield _Network(self, key, item)
+            yield _Network(self, key, item, self.debug)
 
     async def close_session(self):
         """Close HTTP(S) session to FlureeDB"""
@@ -825,7 +828,8 @@ class _FlureeDbClient:
                  https=False,
                  ssl_verify=True,
                  sig_validity=120,
-                 sig_fuel=1000):
+                 sig_fuel=1000,
+                 debug=False):
         """Constructor
 
         Parameters
@@ -852,6 +856,7 @@ class _FlureeDbClient:
         self.host = host
         self.port = port
         self.https = https
+        self.debug = debug
         self.ssl_verify_disabled = False
         self.monitor = {}
         self.monitor["listeners"] = {}
@@ -1626,6 +1631,7 @@ class _FlureeDbClient:
         FlureeKeyRequired
             When 'command' endpoint is invoked in open-API mode.
         """
+        debug = self.debug
         class _StringEndpoint:
             def __init__(self, api_endpoint, client, ssl_verify_disabled=False):
                 """Constructor
@@ -1677,16 +1683,23 @@ class _FlureeDbClient:
                 FlureeHttpError
                     When HTTP status from fluree server is anything other than 200
                 """
+                if debug:
+                    print("_post_body_with_headers", self.url, self.ssl_verify_disabled)
+                    print("  headers:", headers)
+                    print("  body:", body)
                 if self.ssl_verify_disabled:
                     async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
                         if resp.status != 200:
                             raise FlureeHttpError(await resp.text(), resp.status)
-                        return await resp.text()
+                        rval = await resp.text()
                 else:
                     async with self.session.post(self.url, data=body, headers=headers) as resp:
                         if resp.status != 200:
                             raise FlureeHttpError(await resp.text(), resp.status)
-                        return await resp.text()
+                        rval = await resp.text()
+                if debug:
+                    print("rval:", rval)
+                return rval
 
             async def header_signed(self, query_body, contenttype="application/json"):
                 """Do a HTTP query using headers for signing
