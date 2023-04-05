@@ -1722,7 +1722,7 @@ class _FlureeDbClient:
                     Return body from server
                 """
                 if self.signer:
-                    if self.debug:
+                    if debug:
                         print("Signing with:", self.signer.auth_id)
                     body, headers, _ = self.signer.sign_query(query_body, querytype=self.api_endpoint)
                 else:
