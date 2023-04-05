@@ -435,6 +435,8 @@ class _SignedPoster:
         body = json.dumps(kwdict, indent=4, sort_keys=True)
         headers = {"Content-Type": "application/json"}
         if not self.unsigned:
+            if self.debug:
+                print("Signing with:", self.signer.auth_id)
             body, headers, _ = self.signer.sign_query(kwdict)
         rval = await self._post_body_with_headers(body, headers)
         # If this is a new-db or new-legger, we need to await till it comes into existance.
@@ -1720,6 +1722,8 @@ class _FlureeDbClient:
                     Return body from server
                 """
                 if self.signer:
+                    if self.debug:
+                        print("Signing with:", self.signer.auth_id)
                     body, headers, _ = self.signer.sign_query(query_body, querytype=self.api_endpoint)
                 else:
                     body = json.dumps(query_body, indent=4, sort_keys=True)
@@ -1741,6 +1745,8 @@ class _FlureeDbClient:
                     Return body from server
 
                 """
+                if self.debug:
+                    print("Signing with:", self.signer.auth_id)
                 command = self.signer.sign_transaction(transact_obj, deps)
                 body = json.dumps(command, indent=4, sort_keys=True)
                 headers = {"content-type": "application/json"}
