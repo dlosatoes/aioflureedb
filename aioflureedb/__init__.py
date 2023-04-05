@@ -1560,7 +1560,6 @@ class _FlureeDbClient:
         FlureeHttpError
             When the error from FlureeDB is db/invalid-auth
         """
-        times = 0
         while True:
             try:
                 await self.flureeql.query(
@@ -1571,9 +1570,7 @@ class _FlureeDbClient:
             except FlureeHttpError as ex:
                 result = json.loads(ex.args[0])
                 if result["error"] == "db/invalid-auth":
-                    times +=1
-                    if times > 10:
-                        raise ex
+                    raise ex
                 await asyncio.sleep(2)
 
     async def __aexit__(self, exc_type, exc, traceback):
