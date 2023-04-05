@@ -452,7 +452,7 @@ class _SignedPoster:
                 for database in databases:
                     dbid2 = database[0] + "/" + database[1]
                     if dbid == dbid2:
-                        return True
+                        return rval
                 await asyncio.sleep(0.1)
         return rval
 
