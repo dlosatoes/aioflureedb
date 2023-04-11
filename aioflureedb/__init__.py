@@ -1745,7 +1745,7 @@ class _FlureeDbClient:
                     Return body from server
 
                 """
-                if self.debug:
+                if debug:
                     print("Signing with:", self.signer.auth_id)
                 command = self.signer.sign_transaction(transact_obj, deps)
                 body = json.dumps(command, indent=4, sort_keys=True)
