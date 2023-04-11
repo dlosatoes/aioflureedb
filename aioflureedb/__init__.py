@@ -432,6 +432,13 @@ class _SignedPoster:
         for reqkey in self.required:
             if reqkey not in kwset:
                 raise TypeError("SignedPoster is missing one required named argument '", reqkey, "'")
+        if self.url.endswith("/new-ledger"):
+            if "options" not in kwdict:
+                kwdict["options"] = {}
+            if "root" not in kwdict["options"]:
+                kwdict["options"]["root"] = []
+            if self.signer.auth_id not in kwdict["options"]["root"]:
+                kwdict["options"]["root"].append(self.signer.auth_id)
         body = json.dumps(kwdict, indent=4, sort_keys=True)
         headers = {"Content-Type": "application/json"}
         if not self.unsigned:
