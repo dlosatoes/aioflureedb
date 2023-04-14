@@ -273,7 +273,7 @@ class _UnsignedGetter:
             If the server returns something different than a 200 OK status
         """
         if self.debug:
-            print("Unsigned GET: url =", self.url,", ssl_verify_disabled =", self.ssl_verify_disabled)
+            print("Unsigned GET: url =", self.url, ", ssl_verify_disabled =", self.ssl_verify_disabled)
         if self.ssl_verify_disabled:
             async with self.session.get(self.url, ssl=False) as resp:
                 if resp.status != 200:
@@ -373,7 +373,7 @@ class _SignedPoster:
             When Fluree server returns a status code other than 200
         """
         if self.debug:
-            print("Signed POST: url =", self.url,", headers =", headers, ",ssl_verify_disabled =", self.ssl_verify_disabled)
+            print("Signed POST: url =", self.url, ", headers =", headers, ",ssl_verify_disabled =", self.ssl_verify_disabled)
             print("  body = ", body)
         if self.ssl_verify_disabled:
             async with self.session.post(self.url, data=body, headers=headers, ssl=False) as resp:
@@ -451,7 +451,7 @@ class _SignedPoster:
                     (self.url.split("/")[-1] == "new-db" and "db_id" in kwargs) or
                     (self.url.split("/")[-1] == "new-ledger" and "ledger_id" in kwargs)
                 )):
-            dbid = kwargs.get("ledger_id", kwargs.get("db_id",None))
+            dbid = kwargs.get("ledger_id", kwargs.get("db_id", None))
             while dbid:
                 databases = await self.client.ledgers()
                 for database in databases:
@@ -616,7 +616,7 @@ class FlureeClient:
         assert isinstance(sig_validity, (float, int))
         self.debug = False
         if environ.get("AIOFLUREEDB_DEBUG") == "TRUE":
-            self.debug=True
+            self.debug = True
         self.host = host
         self.port = port
         self.https = https
@@ -649,7 +649,7 @@ class FlureeClient:
                     "add_server": None,
                     "remove_server": None
                 }
-        self.unsigned_endpoints = set(["dbs","ledgers","health", "new_keys", "nw_state", "version"])
+        self.unsigned_endpoints = set(["dbs", "ledgers", "health", "new_keys", "nw_state", "version"])
         self.use_get = set(["health", "new_keys", "nw_state", "version"])
         self.required = {}
         self.required["new_db"] = set(["db_id"])
@@ -753,12 +753,27 @@ class FlureeClient:
         if api_endpoint in self.optional:
             optional = self.optional[api_endpoint]
         if signed:
-            return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled, debug=self.debug)
+            return _SignedPoster(self,
+                                 self.session,
+                                 self.signer,
+                                 url,
+                                 required,
+                                 optional,
+                                 self.ssl_verify_disabled,
+                                 debug=self.debug)
         if use_get:
             if api_endpoint == "health":
                 return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, ready="ready", debug=self.debug)
             return _UnsignedGetter(self.session, url, self.ssl_verify_disabled, debug=self.debug)
-        return _SignedPoster(self, self.session, self.signer, url, required, optional, self.ssl_verify_disabled, unsigned=True, debug=self.debug)
+        return _SignedPoster(self,
+                             self.session,
+                             self.signer,
+                             url,
+                             required,
+                             optional,
+                             self.ssl_verify_disabled,
+                             unsigned=True,
+                             debug=self.debug)
 
     async def __getitem__(self, key):
         """Square bracket operator
@@ -1636,6 +1651,7 @@ class _FlureeDbClient:
             When 'command' endpoint is invoked in open-API mode.
         """
         debug = self.debug
+
         class _StringEndpoint:
             def __init__(self, api_endpoint, client, ssl_verify_disabled=False):
                 """Constructor

@@ -17,8 +17,8 @@ accept-no-raise-doc=no
 accept-no-return-doc=no
 accept-no-yields-doc=no
 default-docstring-type=numpy
-max-try-statements=1
-max-complexity=14
+#max-try-statements=1
+#max-complexity=14
 # Use multiple processes to speed up Pylint.
 # DO NOT CHANGE THIS VALUES >1 HIDE RESULTS!!!!!
 jobs=1
@@ -38,7 +38,7 @@ extension-pkg-whitelist=
 # operator. Joining a lot of strings can lead to a maximum recursion error in
 # Pylint and this flag can prevent that. It has one side effect, the resulting
 # AST will be different than the one from reality.
-optimize-ast=no
+#optimize-ast=no
 
 
 [MESSAGES CONTROL]
@@ -58,7 +58,7 @@ disable=R0903,R0205,C0301
 
 [REPORTS]
 output-format=colorized
-files-output=no
+#files-output=no
 reports=yes
 evaluation=10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
 msg-template='[{msg_id} {symbol}] {msg} File: {path}, line {line}, in {obj}'
@@ -77,7 +77,7 @@ single-line-if-stmt=no
 # separator` is used to allow tabulation in dicts, etc.: {1  : 1,\n222: 2}.
 # `trailing-comma` allows a space between comma and closing bracket: (a, ).
 # `empty-line` allows space-only lines.
-no-space-check=trailing-comma,dict-separator
+#no-space-check=trailing-comma,dict-separator
 
 # Maximum number of lines in a module
 max-module-lines=4096
@@ -194,41 +194,41 @@ include-naming-hint=no
 function-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Naming hint for function names
-function-name-hint=[a-z_][a-z0-9_]{2,30}$
+#function-name-hint=[a-z_][a-z0-9_]{2,30}$
 
 # Regular expression matching correct variable names
 variable-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Naming hint for variable names
-variable-name-hint=[a-z_][a-z0-9_]{2,30}$
+#variable-name-hint=[a-z_][a-z0-9_]{2,30}$
 
 # Regular expression matching correct constant names
 const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
 
 # Naming hint for constant names
-const-name-hint=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+#const-name-hint=(([A-Z_][A-Z0-9_]*)|(__.*__))$
 
 # Regular expression matching correct attribute names
 attr-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Naming hint for attribute names
-attr-name-hint=[a-z_][a-z0-9_]{2,30}$
+#attr-name-hint=[a-z_][a-z0-9_]{2,30}$
 
 # Regular expression matching correct argument names
 argument-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Naming hint for argument names
-argument-name-hint=[a-z_][a-z0-9_]{2,30}$
+#argument-name-hint=[a-z_][a-z0-9_]{2,30}$
 
 # Regular expression matching correct class attribute names
 class-attribute-rgx=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
 
 # Naming hint for class attribute names
-class-attribute-name-hint=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
+#class-attribute-name-hint=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
 
 # Regular expression matching correct inline iteration names
 inlinevar-rgx=[A-Za-z_][A-Za-z0-9_]*$
 
 # Naming hint for inline iteration names
-inlinevar-name-hint=[A-Za-z_][A-Za-z0-9_]*$
+#inlinevar-name-hint=[A-Za-z_][A-Za-z0-9_]*$
 

@@ -170,7 +170,7 @@ class DbSigner:
         obj = {}
         obj["type"] = "tx"
         obj["tx"] = transaction
-        obj["ledger"] = self.database # db -> ledger
+        obj["ledger"] = self.database  # db -> ledger
         obj["auth"] = self.auth_id
         obj["fuel"] = self.fuel
         nonce = random.randint(0, 9007199254740991)

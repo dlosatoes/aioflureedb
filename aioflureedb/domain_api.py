@@ -18,6 +18,7 @@ except ImportError:
         """Dummy Context for install witout jsonata"""
         def __init__(self, bigint_patch, debug_print):
             pass
+
         def __call__(self, xform, json_data):
             """We don't want to fail on import, we only want to fail on usage
 

@@ -6,6 +6,7 @@ import json
 from . import FlureeClient
 # from .domain_api import FlureeDomainAPI
 
+
 async def fluree_main(client, endpoint, data):
     """main for invoking single top level flureedb API endpoint
 
@@ -26,7 +27,7 @@ async def fluree_main(client, endpoint, data):
     # pylint: disable=too-many-return-statements
     if endpoint is None:
         print("No endpoint specified, default to health")
-        endpoint="health"
+        endpoint = "health"
     if endpoint == "health":
         return await client.health()
     await client.health.ready()
@@ -39,12 +40,13 @@ async def fluree_main(client, endpoint, data):
     if endpoint == "version":
         return await client.version()
     if endpoint == "new_db":
-        print("data: '", data , "'")
+        print("data: '", data ,"'")
         return await client.new_db(db_id=data)
     if endpoint == "new_ledger":
-        print("data: '", data , "'")
+        print("data: '", data, "'")
         return await client.new_ledger(db_id=data)
     return "Unknown endpoint:" + str(endpoint)
+
 
 async def database_main(client, dbase, endpoint, data, key):
     """Main for invoking DB specific FlureeDB database endpoints
@@ -83,6 +85,7 @@ async def database_main(client, dbase, endpoint, data, key):
         if endpoint == "command":
             return await database.command.transaction(json.loads(data))
     return "Unknown endpoint:" + str(endpoint)
+
 
 async def argparse_main():
     """Arguments parsting main"""
@@ -181,18 +184,18 @@ async def argparse_main():
                 inf = open(args.datafile, encoding="utf-8")
             data = inf.read()
     async with FlureeClient(args.masterkey,
-                          args.host,
-                          int(args.port),
-                          args.https != "false",
-                          args.sslverify != "false",
-                          float(args.sigvalidity),
-                          float(args.sigfuel)) as client:
+                            args.host,
+                            int(args.port),
+                            args.https != "false",
+                            args.sslverify != "false",
+                            float(args.sigvalidity),
+                            float(args.sigfuel)) as client:
         try:
             if args.subcommand == "fluree":
                 print(json.dumps(await fluree_main(client, args.endpoint, data), indent=2))
             elif args.subcommand == "database":
                 print(json.dumps(await database_main(client, args.db, args.endpoint, data, args.masterkey), indent=2))
-        except Exception as exp: # pylint: disable=broad-except
+        except Exception as exp:  # pylint: disable=broad-except
             print(exp)
 
 
