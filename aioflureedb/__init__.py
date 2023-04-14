@@ -418,14 +418,14 @@ class _SignedPoster:
         TypeError
             If an unknown kwarg is used on invocation OR a required kwarg is not supplied
         """
-        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-locals, too-many-branches
         kwset = set()
         kwdict = {}
         for key, value in kwargs.items():
             if not (key in self.required or key in self.optional):
                 raise TypeError("SignedPoster got unexpected keyword argument '" + key + "'")
             kwset.add(key)
-            if key == "db_id" or key == "ledger_id":
+            if key in {"db_id", "ledger_id"}:
                 kwdict["ledger/id"] = value
             else:
                 kwdict[key] = value
@@ -445,16 +445,14 @@ class _SignedPoster:
             body, headers, _ = self.signer.sign_query(kwdict)
         rval = await self._post_body_with_headers(body, headers)
         # If this is a new-db or new-legger, we need to await till it comes into existance.
+        # pylint: disable=too-many-boolean-expressions
         if (isinstance(rval, str) and len(rval) == 64 and
                 (
                     (self.url.split("/")[-1] == "new-db" and "db_id" in kwargs) or
                     (self.url.split("/")[-1] == "new-ledger" and "ledger_id" in kwargs)
                 )):
-            if "ledger_id" in kwargs:
-                dbid = kwargs["ledger_id"]
-            else:
-                dbid = kwargs["db_id"]
-            while True:
+            dbid = kwargs.get("ledger_id", kwargs.get("db_id",None))
+            while dbid:
                 databases = await self.client.ledgers()
                 for database in databases:
                     dbid2 = database[0] + "/" + database[1]
