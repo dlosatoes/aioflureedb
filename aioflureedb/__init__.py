@@ -433,10 +433,10 @@ class _SignedPoster:
             if reqkey not in kwset:
                 raise TypeError("SignedPoster is missing one required named argument '", reqkey, "'")
         if self.url.endswith("/new-ledger"):
-            if "options" not in kwdict:
-                kwdict["options"] = {}
-            if "root" not in kwdict["options"]:
-                kwdict["options"]["root"] = self.signer.auth_id
+            if "owners" not in kwdict:
+                kwdict["owners"] = []
+            if self.signer.auth_id not in kwdict["owners"] = []:
+                kwdict["owners"].append(self.signer.auth_id)
         body = json.dumps(kwdict, indent=4, sort_keys=True)
         headers = {"Content-Type": "application/json"}
         if not self.unsigned:
@@ -659,7 +659,7 @@ class FlureeClient:
         self.required["add_server"] = set(["server"])
         self.required["delete_server"] = set(["server"])
         self.optional = {"new_db": set(["snapshot"])}
-        self.optional = {"new_ledger": set(["snapshot"])}
+        self.optional = {"new_ledger": set(["snapshot","owners"])}
         self.implemented = set(["dbs",
                                 "ledgers",
                                 "new_keys",
