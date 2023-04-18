@@ -435,7 +435,7 @@ class _SignedPoster:
         if self.url.endswith("/new-ledger"):
             if "owners" not in kwdict:
                 kwdict["owners"] = []
-            if self.signer.auth_id not in kwdict["owners"] = []:
+            if self.signer.auth_id not in kwdict["owners"]:
                 kwdict["owners"].append(self.signer.auth_id)
         body = json.dumps(kwdict, indent=4, sort_keys=True)
         headers = {"Content-Type": "application/json"}
