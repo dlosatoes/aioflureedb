@@ -306,7 +306,12 @@ class _UnsignedGetter:
             try:
                 obj = await self()
                 if obj[self.ready_field]:
-                    return
+                    # nasty hack, this shouldn't be needed
+                    if "status" not in obj:
+                        return
+                    if obj["status"]:
+                        return
+                    print("NOTICE: Fluree returns ready, but status not set")
             except FlureeHttpError as ex:
                 print(ex)
             except aiohttp.client_exceptions.ClientConnectorError:
