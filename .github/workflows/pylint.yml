@@ -22,6 +22,7 @@ jobs:
         pip install aiohttp
         pip install base58
         pip install starkbank-ecdsa
+        pip install python-mbedtls
     - name: Analysing the code with pylint
       run: |
          pylint `ls aioflureedb/*.py|xargs`
