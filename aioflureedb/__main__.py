@@ -40,7 +40,7 @@ async def fluree_main(client, endpoint, data):
     if endpoint == "version":
         return await client.version()
     if endpoint == "new_db":
-        print("data: '", data ,"'")
+        print("data: '", data, "'")
         return await client.new_db(db_id=data)
     if endpoint == "new_ledger":
         print("data: '", data, "'")

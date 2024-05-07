@@ -664,7 +664,7 @@ class FlureeClient:
         self.required["add_server"] = set(["server"])
         self.required["delete_server"] = set(["server"])
         self.optional = {"new_db": set(["snapshot"])}
-        self.optional = {"new_ledger": set(["snapshot","owners"])}
+        self.optional = {"new_ledger": set(["snapshot", "owners"])}
         self.implemented = set(["dbs",
                                 "ledgers",
                                 "new_keys",
