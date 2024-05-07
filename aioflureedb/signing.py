@@ -75,10 +75,7 @@ def pubkey_to_address(pubkey, chain):
     yred = (2 + pubkey.point.y % 2).to_bytes(1, byteorder='big')
     key = yred + x
     hash1 = hashlib.sha256()
-    if 'ripemd160' in hashlib.algorithms_available:
-        hash2 = hashlib.new('ripemd160')
-    else:
-        hash2 = hashlib2.new('ripemd160')
+    hash2 = hashlib.new('ripemd160')
     hash1.update(key)
     hash2.update(hash1.digest())
     core = _net_id_map[chain] + hash2.digest()

@@ -8,7 +8,7 @@ requirements = ["starkbank-ecdsa>=2.0.3", "python-mbedtls>=2.10.1", "aiohttp", "
 
 setup(
     name='aioflureedb',
-    version='0.8.2',
+    version='0.8.3',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,
