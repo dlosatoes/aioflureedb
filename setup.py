@@ -4,11 +4,11 @@ from os import path
 from sys import platform
 here = path.abspath(path.dirname(__file__))
 
-requirements = ["starkbank-ecdsa>=2.0.3", "aiohttp", "base58"]
+requirements = ["starkbank-ecdsa>=2.0.3", "python-mbedtls>=2.10.1", "aiohttp", "base58"]
 
 setup(
     name='aioflureedb',
-    version='0.8.1',
+    version='0.8.2',
     description='Asynchonous library for usage of the FlureeDB API',
     long_description="""An asynchonous client library for communicating with a FlureeDB server, making signed transactions and queries.
     """,

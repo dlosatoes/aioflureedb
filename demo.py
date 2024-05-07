@@ -2,7 +2,6 @@
 # WARNING: This script isn't meant to have any end-user use. It's a walkthrough
 # script for lib-dev use only.
 import asyncio
-import hashlib
 import time
 import subprocess
 import aioflureedb
